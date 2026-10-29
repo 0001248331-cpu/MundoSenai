@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rede Cisco · 3D Interativo</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#030a17;color:#eaf6ff}canvas{display:block;width:100vw;height:100vh;cursor:grab;touch-action:none}canvas:active{cursor:grabbing}.top{position:fixed;top:18px;left:18px;pointer-events:none;max-width:min(440px,calc(100vw - 36px));background:#071426df;border:1px solid #3e6d9b66;box-shadow:0 9px 40px #0008;padding:18px 21px;border-radius:16px;backdrop-filter:blur(12px)}.eyebrow{font-size:11px;color:#54dcfc;font-weight:800;letter-spacing:.19em;margin-bottom:6px}.top h1{font-size:clamp(17px,3vw,24px);margin:0 0 6px;font-weight:850}.top p{margin:4px 0 0;color:#a9c2df;font-size:13px;line-height:1.5}.bottom{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:9px;background:#061224df;border:1px solid #38557599;padding:9px;border-radius:14px;backdrop-filter:blur(9px);max-width:96vw}.bottom button{background:#14304f;color:#e2f4ff;border:1px solid #3d6889;padding:11px 13px;border-radius:9px;font-weight:700;cursor:pointer;white-space:nowrap}.bottom button:hover{background:#205278}.info{position:fixed;right:18px;top:18px;width:min(290px,calc(100vw - 36px));background:#081a2ae8;border:1px solid #54dcfc70;border-radius:14px;padding:16px;box-shadow:0 8px 25px #0008;display:none}.info h2{font-size:18px;margin:0 0 4px}.info small{color:#72e2ff}.info p{color:#bfd3e7;line-height:1.5;margin:10px 0 0;font-size:14px}.legend{position:fixed;left:18px;bottom:91px;max-width:345px;font-size:12px;color:#91abc4;line-height:1.4;pointer-events:none}.chip{color:#5df5b6}.wifi{color:#ad8eff}@media(max-width:720px){.top{padding:12px 14px;max-width:calc(100vw - 30px)}.top h1{font-size:17px}.top p{font-size:11px}.info{top:auto;bottom:88px;right:12px;width:min(260px,calc(100vw - 24px))}.bottom{gap:5px;padding:6px;bottom:10px}.bottom button{font-size:11px;padding:9px 7px}.legend{display:none}}
+</style></head><body>
+<canvas id="stage" aria-label="Visualização interativa em perspectiva da rede Cisco"></canvas>
+<section class="top"><div class="eyebrow">CISCO PACKET TRACER • DEMONSTRAÇÃO</div><h1>Rede Cisco 3D interativa</h1><p>Roteador → Firewall → Switches → PCs + Wi-Fi</p><p>Arraste para girar • Role para zoom • Clique nos equipamentos</p></section>
+<section class="info" id="info"><h2 id="deviceTitle"></h2><small id="deviceRole"></small><p id="deviceInfo"></p></section>
+<div class="legend"><span class="chip">●</span> Pacotes Ethernet em movimento &nbsp; <span class="wifi">●</span> Conexões Wi-Fi</div>
+<div class="bottom"><button id="packets">⏸ Pausar dados</button><button id="rotation">⏸ Parar câmera</button><button id="reset">↺ Reiniciar</button></div>
+<script>
+(()=>{
+'use strict';
+const canvas=document.querySelector('#stage'),ctx=canvas.getContext('2d');
+const info=document.querySelector('#info'),deviceTitle=document.querySelector('#deviceTitle'),deviceRole=document.querySelector('#deviceRole'),deviceInfo=document.querySelector('#deviceInfo');
+let W=0,H=0,DPR=1,yaw=.33,pitch=.77,zoom=20,auto=true,moving=true,hover=-1,selected=-1,dragging=false,down=null,last=null,time=0,lastTime=0;
+const V=(x,y,z)=>({x,y,z});
+const colors={blue:'#239bf9',red:'#fe546a',green:'#50f0a1',purple:'#a282fa',cyan:'#4ddafa'};
+const nodes=[
+{id:'ROTEADOR 1941',type:'router',role:'Gateway de internet',desc:'Distribui a conexão de internet e gerencia o tráfego de dados.',p:V(0,.52,4),c:colors.blue},
+{id:'FIREWALL 5506-X',type:'firewall',role:'Segurança',desc:'Controla, monitora e filtra o tráfego de dados entre os dispositivos.',p:V(0,.52,1.85),c:colors.red},
+{id:'SWITCH A',type:'switch',role:'Distribuição de rede',desc:'Distribui a rede para o servidor e dois computadores.',p:V(-3.7,.48,-.2),c:colors.blue},
+{id:'SWITCH B',type:'switch',role:'Distribuição de rede',desc:'Conecta dois computadores e o Access Point Wi-Fi.',p:V(3.7,.48,-.2),c:colors.blue},
+{id:'SERVIDOR',type:'server',role:'192.168.10.2',desc:'Armazena arquivos e serviços. Gateway: 192.168.10.1.',p:V(-6.1,.72,-2.1),c:colors.purple},
+{id:'PC 01',type:'pc',role:'192.168.10.11',desc:'Computador conectado ao Switch A pela porta Fa0/2.',p:V(-4.4,.48,-3.85),c:colors.cyan},
+{id:'PC 02',type:'pc',role:'192.168.10.12',desc:'Computador conectado ao Switch A pela porta Fa0/3.',p:V(-2.65,.48,-3.85),c:colors.cyan},
+{id:'PC 03',type:'pc',role:'192.168.10.51',desc:'Computador conectado ao Switch B pela porta Fa0/2.',p:V(2.75,.48,-3.85),c:colors.green},
+{id:'PC 04',type:'pc',role:'192.168.10.52',desc:'Computador conectado ao Switch B pela porta Fa0/3.',p:V(4.6,.48,-3.85),c:colors.green},
+{id:'ACCESS POINT',type:'ap',role:'Wi-Fi',desc:'Amplia a cobertura do sinal sem fio para os visitantes.',p:V(6.2,.5,2.25),c:colors.purple},
+{id:'LAPTOP',type:'pc',role:'Visitante Wi-Fi',desc:'Notebook conectado sem fio pelo Access Point.',p:V(5.15,.45,4.15),c:colors.cyan},
+{id:'SMARTPHONE',type:'phone',role:'Visitante Wi-Fi',desc:'Celular conectado sem fio pelo Access Point.',p:V(7.1,.52,4.15),c:colors.green}
+];
+const edges=[[0,1,'Gi0/1 → Gi1/1'],[1,2,'Gi1/3 → Fa0/23'],[1,3,'Gi1/2 → Fa0/24'],[2,4,'Fa0/4'],[2,5,'Fa0/2'],[2,6,'Fa0/3'],[3,7,'Fa0/2'],[3,8,'Fa0/3'],[3,9,'Fa0/4'],[9,10,'Wi-Fi',true],[9,11,'Wi-Fi',true]];
+function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=Math.floor(W*DPR);canvas.height=Math.floor(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0)}
+addEventListener('resize',resize);resize();
+function camera(p){let x=p.x,z=p.z,y=p.y;let cx=Math.cos(yaw),sx=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);let rx=cx*x-sx*z,rz=sx*x+cx*z;return {x:rx,y:y*cp-rz*sp,z:y*sp+rz*cp};}
+function project(p){let r=camera(p),f=Math.min(W*.083,H*.125)*zoom/12,depth=zoom+r.z;let perspective=zoom/(Math.max(5,depth));return {x:W*.5+r.x*f*perspective,y:H*(W<700?.57:.60)-r.y*f*perspective,scale:f*perspective,depth};}
+function line(a,b,color,width=2,dash=[]){let pa=project(a),pb=project(b);ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.stroke();ctx.setLineDash([])}
+function rgb(h,f){let n=parseInt(h.slice(1),16);return `rgb(${Math.min(255,Math.round(((n>>16)&255)*f))},${Math.min(255,Math.round(((n>>8)&255)*f))},${Math.min(255,Math.round((n&255)*f))})`}
+function cube(center,size,color){let [w,h,d]=size,x=center.x,y=center.y,z=center.z;let vs=[V(x-w/2,y-h/2,z-d/2),V(x+w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z-d/2),V(x-w/2,y+h/2,z-d/2),V(x-w/2,y-h/2,z+d/2),V(x+w/2,y-h/2,z+d/2),V(x+w/2,y+h/2,z+d/2),V(x-w/2,y+h/2,z+d/2)];let faces=[[0,1,2,3],[4,5,6,7],[0,4,7,3],[1,5,6,2],[3,2,6,7],[0,1,5,4]];let colored=faces.map((face,i)=>({pts:face.map(j=>project(vs[j])),z:face.reduce((s,j)=>s+camera(vs[j]).z,0)/4,factor:[.63,.75,.78,.84,1.20,.5][i]})).sort((a,b)=>b.z-a.z);for(let face of colored){ctx.beginPath();face.pts.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();ctx.fillStyle=rgb(color,face.factor);ctx.fill();ctx.strokeStyle='#06162e';ctx.lineWidth=1.2;ctx.stroke()}}
+function circle3(p,r,color,glow=0){let a=project(p),rad=Math.max(1.4,r*a.scale);ctx.beginPath();ctx.arc(a.x,a.y,rad,0,Math.PI*2);ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=glow;ctx.fill();ctx.shadowBlur=0}
+function textAt(t,p,color='#ddebff',size=12,bold=true){let pt=project(p);let fontSize=Math.max(9,Math.min(18,size*pt.scale/8));ctx.font=`${bold?'800':'500'} ${fontSize}px system-ui`;ctx.textAlign='center';ctx.lineJoin='round';ctx.lineWidth=3;ctx.strokeStyle='#031329';ctx.strokeText(t,pt.x,pt.y);ctx.fillStyle=color;ctx.fillText(t,pt.x,pt.y)}
+function lerp(a,b,t){return V(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,a.z+(b.z-a.z)*t)}
+function draw(){let now=performance.now();let dt=Math.min(.045,(now-lastTime)/1000||.016);lastTime=now;time+=dt;if(auto)yaw+=dt*.13;ctx.clearRect(0,0,W,H);
+let bg=ctx.createRadialGradient(W*.5,H*.45,20,W*.5,H*.5,Math.max(W,H)*.7);bg.addColorStop(0,'#0b2441');bg.addColorStop(1,'#030916');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
+// Ground, coordinate mesh, and glowing pads
+cube(V(0,-.18,0),[16.6,.17,11.7],'#122e47');for(let x=-8;x<=8;x++)line(V(x,-.081,-5.8),V(x,-.081,5.8),'#2f668042',.8);for(let z=-5;z<=5;z++)line(V(-8,-.081,z),V(8,-.081,z),'#2f668042',.8);
+for(let e of edges){let a=nodes[e[0]].p,b=nodes[e[1]].p;let p=V(a.x,.21,a.z),q=V(b.x,.21,b.z);line(p,q,e[3]?'#a48bfa':'#25aefc',e[3]?2:2.5,e[3]?[7,7]:[])}
+if(moving)for(let i=0;i<edges.length;i++){let e=edges[i],a=nodes[e[0]].p,b=nodes[e[1]].p;for(let j=0;j<3;j++){let t=((time*.33+i*.19+j/3)%1),p=lerp(V(a.x,.22,a.z),V(b.x,.22,b.z),t);p.y+=(e[3]?.34:.10);circle3(p,.075,e[3]?'#d7a6ff':'#5afcb0',17)}}
+let order=nodes.map((n,i)=>({n,i,depth:camera(n.p).z})).sort((a,b)=>b.depth-a.depth);const hits=[];
+for(let obj of order){let {n,i}=obj,p=n.p;circle3(V(p.x,.0,p.z),.48,'#245479',13);if(n.type==='router'){cube(p,[1.05,.34,.85],n.c);circle3(V(p.x,p.y+.2,p.z),.27,'#c8eeff',9)}else if(n.type==='firewall'){cube(p,[1.35,.85,.64],n.c);for(let j=-1;j<=1;j++)circle3(V(p.x+j*.32,p.y,p.z-.335),.04,'#ffbdc5',5)}else if(n.type==='switch'){cube(p,[1.40,.36,.73],n.c);for(let j=0;j<5;j++)cube(V(p.x-.46+j*.23,p.y-.01,p.z-.39),[.13,.095,.025],'#0b1c32')}else if(n.type==='server'){cube(p,[.73,1.25,.64],n.c);for(let j=0;j<4;j++)cube(V(p.x,p.y-.38+j*.25,p.z-.335),[.52,.055,.016],'#234267')}else if(n.type==='phone'){cube(p,[.37,.8,.13],n.c);cube(V(p.x,p.y,p.z-.075),[.27,.61,.018],'#062b53')}else if(n.type==='ap'){cube(p,[.90,.22,.68],n.c);cube(V(p.x+.25,p.y+.33,p.z+.15),[.06,.58,.06],n.c)}else{cube(p,[.8,.56,.12],n.c);cube(V(p.x,p.y,p.z-.071),[.67,.43,.018],'#092d4d');cube(V(p.x,p.y-.39,p.z),[.12,.24,.18],n.c);cube(V(p.x,p.y-.51,p.z-.15),[.8,.055,.34],n.c)}
+let hoverGlow=i===hover||i===selected;textAt(n.id,V(p.x,p.y+1.02,p.z),hoverGlow?'#ffffff':'#dceeff',12);if(n.role.match(/192\.168/))textAt(n.role,V(p.x,p.y+.76,p.z),'#78f9b7',10,false);let sp=project(V(p.x,p.y,p.z));hits.push({i,x:sp.x,y:sp.y,r:Math.max(19,.68*sp.scale)});
+if(hoverGlow)circle3(V(p.x,.04,p.z),.19,'#fff39d',18)
+}
+// Store the projected interaction targets for click detection
+window.__ciscoHits=hits; requestAnimationFrame(draw)}
+requestAnimationFrame(draw);
+function findNode(x,y){let h=window.__ciscoHits||[],best=-1,dist=1e10;for(let v of h){let d=Math.hypot(x-v.x,y-v.y);if(d<v.r*1.6&&d<dist){best=v.i;dist=d}}return best}
+function select(i){selected=i;if(i<0){info.style.display='none';return}const n=nodes[i];deviceTitle.textContent=n.id;deviceRole.textContent=n.role;deviceInfo.textContent=n.desc;info.style.display='block'}
+canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);down={x:e.clientX,y:e.clientY};last=down;dragging=false});
+canvas.addEventListener('pointermove',e=>{if(last){const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.abs(e.clientX-down.x)+Math.abs(e.clientY-down.y)>6)dragging=true;if(dragging){yaw+=dx*.009;pitch=Math.max(.27,Math.min(1.46,pitch+dy*.006));auto=false;document.querySelector('#rotation').textContent='▶ Girar câmera'}last={x:e.clientX,y:e.clientY}}else hover=findNode(e.clientX,e.clientY)});
+canvas.addEventListener('pointerup',e=>{if(!dragging)select(findNode(e.clientX,e.clientY));last=null;down=null;dragging=false});
+canvas.addEventListener('pointercancel',()=>{last=null;down=null});
+canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(12,Math.min(29,zoom+Math.sign(e.deltaY)*1.25))},{passive:false});
+document.querySelector('#packets').addEventListener('click',e=>{moving=!moving;e.target.textContent=moving?'⏸ Pausar dados':'▶ Animar dados'});
+document.querySelector('#rotation').addEventListener('click',e=>{auto=!auto;e.target.textContent=auto?'⏸ Parar câmera':'▶ Girar câmera'});
+document.querySelector('#reset').addEventListener('click',()=>{yaw=.33;pitch=.77;zoom=20;auto=true;moving=true;select(-1);document.querySelector('#packets').textContent='⏸ Pausar dados';document.querySelector('#rotation').textContent='⏸ Parar câmera'});
+})();
+</script></body></html>
