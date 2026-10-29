@@ -2,7 +2,16 @@
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#06131f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
     <title>Rede Cisco VR · Diagrama de Rede</title>
     <style>
       :root {
@@ -176,6 +185,34 @@
       .dot.green { background: var(--green); }
       .dot.purple { background: var(--purple); }
 
+      body.vr-stereo .hud,
+      body.vr-stereo .legend,
+      body.vr-stereo .info {
+        display: none !important;
+      }
+
+      body.vr-stereo {
+        background: #000;
+      }
+
+      body.vr-stereo canvas {
+        cursor: default;
+      }
+
+      body.vr-stereo .controls {
+        bottom: 1.2vh;
+        left: 50%;
+        width: auto;
+        padding: 4px;
+        opacity: 0.22;
+        transform: translateX(-50%) scale(0.72);
+        transform-origin: bottom center;
+      }
+
+      body.vr-stereo .controls button:not(#stereoToggle) {
+        display: none;
+      }
+
       @media (max-width: 760px) {
         .hud {
           top: 12px;
@@ -232,6 +269,7 @@
       <button id="nextStop">Próximo ponto</button>
       <button id="tourToggle">Pausar rota</button>
       <button id="resetView">Visão geral</button>
+      <button id="stereoToggle" type="button">Modo VR óculos</button>
     </div>
 
     <script type="module">
@@ -261,6 +299,41 @@
       controls.maxDistance = 26;
       controls.target.set(0, 1.5, 0);
       controls.update();
+
+      let orientationListenerActive = false;
+      const leftCamera = camera.clone();
+      const rightCamera = camera.clone();
+      let stereoMode = false;
+      let eyeSeparation = 0.064;
+      let orientationReceived = false;
+      let vrCameraTarget = null;
+
+      function handleDeviceOrientation(event) {
+        if (event.alpha == null || event.beta == null || event.gamma == null) return;
+
+        const alpha = THREE.MathUtils.degToRad(event.alpha);
+        const beta = THREE.MathUtils.degToRad(event.beta);
+        const gamma = THREE.MathUtils.degToRad(event.gamma);
+        const screenAngle = THREE.MathUtils.degToRad(window.screen.orientation?.angle || 0);
+
+        orientationReceived = true;
+        camera.quaternion.setFromEuler(new THREE.Euler(beta, alpha, -gamma, 'YXZ'));
+        camera.rotateZ(-screenAngle);
+      }
+
+      function connectDeviceOrientation() {
+        if (!orientationListenerActive) {
+          window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+          orientationListenerActive = true;
+        }
+      }
+
+      function disconnectDeviceOrientation() {
+        if (orientationListenerActive) {
+          window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
+          orientationListenerActive = false;
+        }
+      }
 
       const ambientLight = new THREE.HemisphereLight(0xbeecff, 0x0d1723, 1.3);
       scene.add(ambientLight);
@@ -331,6 +404,10 @@
       let selectedDevice = null;
       let routeTimer = 0;
       let pointerDown = false;
+      let vrDragStartX = 0;
+      let vrDragStartY = 0;
+      let vrDragX = 0;
+      let vrDragY = 0;
 
       function createTextSprite(text, color = '#eaf7ff', fontSize = 54) {
         const canvasTexture = document.createElement('canvas');
@@ -525,9 +602,18 @@
 
         const focusPosition = new THREE.Vector3(3.6, 2.1, 3.6);
         const lookAt = target.position.clone();
-        camera.position.lerp(lookAt.clone().add(focusPosition), 0.18);
-        controls.target.lerp(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)), 0.18);
-        controls.update();
+
+        if (stereoMode) {
+          vrCameraTarget = stop.position.clone();
+          controls.target.copy(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)));
+          if (!orientationReceived) {
+            camera.lookAt(controls.target);
+          }
+        } else {
+          camera.position.lerp(lookAt.clone().add(focusPosition), 0.18);
+          controls.target.lerp(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)), 0.18);
+          controls.update();
+        }
 
         const device = target.userData.device;
         selectedDevice = device;
@@ -559,6 +645,72 @@
         resetOverview();
       });
 
+      async function enableStereoMode() {
+        stereoMode = true;
+        document.body.classList.add('vr-stereo');
+        document.getElementById('stereoToggle').textContent = 'Sair do modo VR';
+        controls.enabled = false;
+        autoTravel = true;
+        routeTimer = 0;
+        orientationReceived = false;
+        showRouteStop(0);
+        connectDeviceOrientation();
+
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          try {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== 'granted') return;
+          } catch (error) {
+            console.warn('Permissão de orientação não concedida:', error);
+          }
+        }
+
+        try {
+          if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+          if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+        } catch (error) {
+          console.info('Tela cheia ou bloqueio de orientação não disponível neste navegador.', error);
+        }
+
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      function disableStereoMode() {
+        stereoMode = false;
+        document.body.classList.remove('vr-stereo');
+        document.getElementById('stereoToggle').textContent = 'Modo VR óculos';
+        controls.enabled = true;
+        disconnectDeviceOrientation();
+        renderer.setScissorTest(false);
+        renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+        resetOverview();
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      document.getElementById('stereoToggle').addEventListener('click', () => {
+        if (stereoMode) disableStereoMode(); else enableStereoMode();
+      });
+
+      window.addEventListener('keydown', (event) => {
+        if (!stereoMode) return;
+        if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') {
+          showRouteStop(currentStop + 1);
+          routeTimer = 0;
+        } else if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') {
+          showRouteStop(currentStop - 1);
+          routeTimer = 0;
+        }
+      });
+
+      const vrRequested = !new URLSearchParams(window.location.search).has('desktop');
+      if (vrRequested) {
+        enableStereoMode();
+      }
+
+      window.addEventListener('pointerdown', () => {
+        if (!stereoMode && vrRequested) enableStereoMode();
+      }, { once: true });
+
       const raycaster = new THREE.Raycaster();
       const pointer = new THREE.Vector2();
 
@@ -570,13 +722,40 @@
 
       renderer.domElement.addEventListener('pointerdown', (event) => {
         pointerDown = true;
+        vrDragStartX = event.clientX;
+        vrDragStartY = event.clientY;
+        vrDragX = event.clientX;
+        vrDragY = event.clientY;
         handlePointerMove(event);
+      });
+
+      renderer.domElement.addEventListener('pointermove', (event) => {
+        if (!pointerDown || !stereoMode || orientationReceived) return;
+        const deltaX = event.clientX - vrDragX;
+        const deltaY = event.clientY - vrDragY;
+        if (!orientationReceived && (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0)) {
+          orientationReceived = true;
+        }
+        vrDragX = event.clientX;
+        vrDragY = event.clientY;
+        camera.rotation.y -= deltaX * 0.004;
+        camera.rotation.x -= deltaY * 0.004;
+        camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x, -1.1, 1.1);
       });
 
       renderer.domElement.addEventListener('pointerup', (event) => {
         if (!pointerDown) return;
         pointerDown = false;
         handlePointerMove(event);
+
+        if (stereoMode) {
+          const swipeX = event.clientX - vrDragStartX;
+          if (Math.abs(swipeX) > 35) {
+            showRouteStop(currentStop + (swipeX < 0 ? 1 : -1));
+            routeTimer = 0;
+            return;
+          }
+        }
 
         raycaster.setFromCamera(pointer, camera);
         const hits = raycaster.intersectObjects(interactiveObjects, false);
@@ -600,7 +779,11 @@
         renderer.setSize(window.innerWidth, window.innerHeight);
       });
 
-      document.body.appendChild(VRButton.createButton(renderer));
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+          if (supported) document.body.appendChild(VRButton.createButton(renderer));
+        });
+      }
 
       function animate() {
         renderer.setAnimationLoop(() => {
@@ -626,8 +809,49 @@
             }
           });
 
-          controls.update();
-          renderer.render(scene, camera);
+          if (stereoMode) {
+            if (vrCameraTarget) {
+              camera.position.lerp(vrCameraTarget, 0.025);
+            }
+            if (!orientationReceived && controls.target) {
+              camera.lookAt(controls.target);
+            }
+
+            const width = renderer.domElement.width;
+            const height = renderer.domElement.height;
+            const halfWidth = Math.floor(width / 2);
+
+            leftCamera.position.copy(camera.position);
+            rightCamera.position.copy(camera.position);
+            leftCamera.quaternion.copy(camera.quaternion);
+            rightCamera.quaternion.copy(camera.quaternion);
+            leftCamera.fov = camera.fov;
+            rightCamera.fov = camera.fov;
+            leftCamera.near = camera.near;
+            rightCamera.near = camera.near;
+            leftCamera.far = camera.far;
+            rightCamera.far = camera.far;
+            leftCamera.aspect = halfWidth / height;
+            rightCamera.aspect = halfWidth / height;
+            leftCamera.updateProjectionMatrix();
+            rightCamera.updateProjectionMatrix();
+            leftCamera.translateX(-eyeSeparation / 2);
+            rightCamera.translateX(eyeSeparation / 2);
+
+            renderer.setScissorTest(true);
+            renderer.setViewport(0, 0, halfWidth, height);
+            renderer.setScissor(0, 0, halfWidth, height);
+            renderer.render(scene, leftCamera);
+
+            renderer.setViewport(width - halfWidth, 0, halfWidth, height);
+            renderer.setScissor(width - halfWidth, 0, halfWidth, height);
+            renderer.render(scene, rightCamera);
+          } else {
+            renderer.setScissorTest(false);
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            controls.update();
+            renderer.render(scene, camera);
+          }
         });
       }
 
