@@ -1,70 +1,637 @@
-<!doctype html>
-<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Rede Cisco · 3D Interativo</title>
-<style>
-:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,sans-serif}*{box-sizing:border-box}html,body{margin:0;height:100%;overflow:hidden;background:#030a17;color:#eaf6ff}canvas{display:block;width:100vw;height:100vh;cursor:grab;touch-action:none}canvas:active{cursor:grabbing}.top{position:fixed;top:18px;left:18px;pointer-events:none;max-width:min(440px,calc(100vw - 36px));background:#071426df;border:1px solid #3e6d9b66;box-shadow:0 9px 40px #0008;padding:18px 21px;border-radius:16px;backdrop-filter:blur(12px)}.eyebrow{font-size:11px;color:#54dcfc;font-weight:800;letter-spacing:.19em;margin-bottom:6px}.top h1{font-size:clamp(17px,3vw,24px);margin:0 0 6px;font-weight:850}.top p{margin:4px 0 0;color:#a9c2df;font-size:13px;line-height:1.5}.bottom{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);display:flex;gap:9px;background:#061224df;border:1px solid #38557599;padding:9px;border-radius:14px;backdrop-filter:blur(9px);max-width:96vw}.bottom button{background:#14304f;color:#e2f4ff;border:1px solid #3d6889;padding:11px 13px;border-radius:9px;font-weight:700;cursor:pointer;white-space:nowrap}.bottom button:hover{background:#205278}.info{position:fixed;right:18px;top:18px;width:min(290px,calc(100vw - 36px));background:#081a2ae8;border:1px solid #54dcfc70;border-radius:14px;padding:16px;box-shadow:0 8px 25px #0008;display:none}.info h2{font-size:18px;margin:0 0 4px}.info small{color:#72e2ff}.info p{color:#bfd3e7;line-height:1.5;margin:10px 0 0;font-size:14px}.legend{position:fixed;left:18px;bottom:91px;max-width:345px;font-size:12px;color:#91abc4;line-height:1.4;pointer-events:none}.chip{color:#5df5b6}.wifi{color:#ad8eff}@media(max-width:720px){.top{padding:12px 14px;max-width:calc(100vw - 30px)}.top h1{font-size:17px}.top p{font-size:11px}.info{top:auto;bottom:88px;right:12px;width:min(260px,calc(100vw - 24px))}.bottom{gap:5px;padding:6px;bottom:10px}.bottom button{font-size:11px;padding:9px 7px}.legend{display:none}}
-</style></head><body>
-<canvas id="stage" aria-label="Visualização interativa em perspectiva da rede Cisco"></canvas>
-<section class="top"><div class="eyebrow">CISCO PACKET TRACER • DEMONSTRAÇÃO</div><h1>Rede Cisco 3D interativa</h1><p>Roteador → Firewall → Switches → PCs + Wi-Fi</p><p>Arraste para girar • Role para zoom • Clique nos equipamentos</p></section>
-<section class="info" id="info"><h2 id="deviceTitle"></h2><small id="deviceRole"></small><p id="deviceInfo"></p></section>
-<div class="legend"><span class="chip">●</span> Pacotes Ethernet em movimento &nbsp; <span class="wifi">●</span> Conexões Wi-Fi</div>
-<div class="bottom"><button id="packets">⏸ Pausar dados</button><button id="rotation">⏸ Parar câmera</button><button id="reset">↺ Reiniciar</button></div>
-<script>
-(()=>{
-'use strict';
-const canvas=document.querySelector('#stage'),ctx=canvas.getContext('2d');
-const info=document.querySelector('#info'),deviceTitle=document.querySelector('#deviceTitle'),deviceRole=document.querySelector('#deviceRole'),deviceInfo=document.querySelector('#deviceInfo');
-let W=0,H=0,DPR=1,yaw=.33,pitch=.77,zoom=20,auto=true,moving=true,hover=-1,selected=-1,dragging=false,down=null,last=null,time=0,lastTime=0;
-const V=(x,y,z)=>({x,y,z});
-const colors={blue:'#239bf9',red:'#fe546a',green:'#50f0a1',purple:'#a282fa',cyan:'#4ddafa'};
-const nodes=[
-{id:'ROTEADOR 1941',type:'router',role:'Gateway de internet',desc:'Distribui a conexão de internet e gerencia o tráfego de dados.',p:V(0,.52,4),c:colors.blue},
-{id:'FIREWALL 5506-X',type:'firewall',role:'Segurança',desc:'Controla, monitora e filtra o tráfego de dados entre os dispositivos.',p:V(0,.52,1.85),c:colors.red},
-{id:'SWITCH A',type:'switch',role:'Distribuição de rede',desc:'Distribui a rede para o servidor e dois computadores.',p:V(-3.7,.48,-.2),c:colors.blue},
-{id:'SWITCH B',type:'switch',role:'Distribuição de rede',desc:'Conecta dois computadores e o Access Point Wi-Fi.',p:V(3.7,.48,-.2),c:colors.blue},
-{id:'SERVIDOR',type:'server',role:'192.168.10.2',desc:'Armazena arquivos e serviços. Gateway: 192.168.10.1.',p:V(-6.1,.72,-2.1),c:colors.purple},
-{id:'PC 01',type:'pc',role:'192.168.10.11',desc:'Computador conectado ao Switch A pela porta Fa0/2.',p:V(-4.4,.48,-3.85),c:colors.cyan},
-{id:'PC 02',type:'pc',role:'192.168.10.12',desc:'Computador conectado ao Switch A pela porta Fa0/3.',p:V(-2.65,.48,-3.85),c:colors.cyan},
-{id:'PC 03',type:'pc',role:'192.168.10.51',desc:'Computador conectado ao Switch B pela porta Fa0/2.',p:V(2.75,.48,-3.85),c:colors.green},
-{id:'PC 04',type:'pc',role:'192.168.10.52',desc:'Computador conectado ao Switch B pela porta Fa0/3.',p:V(4.6,.48,-3.85),c:colors.green},
-{id:'ACCESS POINT',type:'ap',role:'Wi-Fi',desc:'Amplia a cobertura do sinal sem fio para os visitantes.',p:V(6.2,.5,2.25),c:colors.purple},
-{id:'LAPTOP',type:'pc',role:'Visitante Wi-Fi',desc:'Notebook conectado sem fio pelo Access Point.',p:V(5.15,.45,4.15),c:colors.cyan},
-{id:'SMARTPHONE',type:'phone',role:'Visitante Wi-Fi',desc:'Celular conectado sem fio pelo Access Point.',p:V(7.1,.52,4.15),c:colors.green}
-];
-const edges=[[0,1,'Gi0/1 → Gi1/1'],[1,2,'Gi1/3 → Fa0/23'],[1,3,'Gi1/2 → Fa0/24'],[2,4,'Fa0/4'],[2,5,'Fa0/2'],[2,6,'Fa0/3'],[3,7,'Fa0/2'],[3,8,'Fa0/3'],[3,9,'Fa0/4'],[9,10,'Wi-Fi',true],[9,11,'Wi-Fi',true]];
-function resize(){DPR=Math.min(devicePixelRatio||1,2);W=innerWidth;H=innerHeight;canvas.width=Math.floor(W*DPR);canvas.height=Math.floor(H*DPR);ctx.setTransform(DPR,0,0,DPR,0,0)}
-addEventListener('resize',resize);resize();
-function camera(p){let x=p.x,z=p.z,y=p.y;let cx=Math.cos(yaw),sx=Math.sin(yaw),cp=Math.cos(pitch),sp=Math.sin(pitch);let rx=cx*x-sx*z,rz=sx*x+cx*z;return {x:rx,y:y*cp-rz*sp,z:y*sp+rz*cp};}
-function project(p){let r=camera(p),f=Math.min(W*.083,H*.125)*zoom/12,depth=zoom+r.z;let perspective=zoom/(Math.max(5,depth));return {x:W*.5+r.x*f*perspective,y:H*(W<700?.57:.60)-r.y*f*perspective,scale:f*perspective,depth};}
-function line(a,b,color,width=2,dash=[]){let pa=project(a),pb=project(b);ctx.beginPath();ctx.moveTo(pa.x,pa.y);ctx.lineTo(pb.x,pb.y);ctx.strokeStyle=color;ctx.lineWidth=width;ctx.setLineDash(dash);ctx.stroke();ctx.setLineDash([])}
-function rgb(h,f){let n=parseInt(h.slice(1),16);return `rgb(${Math.min(255,Math.round(((n>>16)&255)*f))},${Math.min(255,Math.round(((n>>8)&255)*f))},${Math.min(255,Math.round((n&255)*f))})`}
-function cube(center,size,color){let [w,h,d]=size,x=center.x,y=center.y,z=center.z;let vs=[V(x-w/2,y-h/2,z-d/2),V(x+w/2,y-h/2,z-d/2),V(x+w/2,y+h/2,z-d/2),V(x-w/2,y+h/2,z-d/2),V(x-w/2,y-h/2,z+d/2),V(x+w/2,y-h/2,z+d/2),V(x+w/2,y+h/2,z+d/2),V(x-w/2,y+h/2,z+d/2)];let faces=[[0,1,2,3],[4,5,6,7],[0,4,7,3],[1,5,6,2],[3,2,6,7],[0,1,5,4]];let colored=faces.map((face,i)=>({pts:face.map(j=>project(vs[j])),z:face.reduce((s,j)=>s+camera(vs[j]).z,0)/4,factor:[.63,.75,.78,.84,1.20,.5][i]})).sort((a,b)=>b.z-a.z);for(let face of colored){ctx.beginPath();face.pts.forEach((v,i)=>i?ctx.lineTo(v.x,v.y):ctx.moveTo(v.x,v.y));ctx.closePath();ctx.fillStyle=rgb(color,face.factor);ctx.fill();ctx.strokeStyle='#06162e';ctx.lineWidth=1.2;ctx.stroke()}}
-function circle3(p,r,color,glow=0){let a=project(p),rad=Math.max(1.4,r*a.scale);ctx.beginPath();ctx.arc(a.x,a.y,rad,0,Math.PI*2);ctx.fillStyle=color;ctx.shadowColor=color;ctx.shadowBlur=glow;ctx.fill();ctx.shadowBlur=0}
-function textAt(t,p,color='#ddebff',size=12,bold=true){let pt=project(p);let fontSize=Math.max(9,Math.min(18,size*pt.scale/8));ctx.font=`${bold?'800':'500'} ${fontSize}px system-ui`;ctx.textAlign='center';ctx.lineJoin='round';ctx.lineWidth=3;ctx.strokeStyle='#031329';ctx.strokeText(t,pt.x,pt.y);ctx.fillStyle=color;ctx.fillText(t,pt.x,pt.y)}
-function lerp(a,b,t){return V(a.x+(b.x-a.x)*t,a.y+(b.y-a.y)*t,a.z+(b.z-a.z)*t)}
-function draw(){let now=performance.now();let dt=Math.min(.045,(now-lastTime)/1000||.016);lastTime=now;time+=dt;if(auto)yaw+=dt*.13;ctx.clearRect(0,0,W,H);
-let bg=ctx.createRadialGradient(W*.5,H*.45,20,W*.5,H*.5,Math.max(W,H)*.7);bg.addColorStop(0,'#0b2441');bg.addColorStop(1,'#030916');ctx.fillStyle=bg;ctx.fillRect(0,0,W,H);
-// Ground, coordinate mesh, and glowing pads
-cube(V(0,-.18,0),[16.6,.17,11.7],'#122e47');for(let x=-8;x<=8;x++)line(V(x,-.081,-5.8),V(x,-.081,5.8),'#2f668042',.8);for(let z=-5;z<=5;z++)line(V(-8,-.081,z),V(8,-.081,z),'#2f668042',.8);
-for(let e of edges){let a=nodes[e[0]].p,b=nodes[e[1]].p;let p=V(a.x,.21,a.z),q=V(b.x,.21,b.z);line(p,q,e[3]?'#a48bfa':'#25aefc',e[3]?2:2.5,e[3]?[7,7]:[])}
-if(moving)for(let i=0;i<edges.length;i++){let e=edges[i],a=nodes[e[0]].p,b=nodes[e[1]].p;for(let j=0;j<3;j++){let t=((time*.33+i*.19+j/3)%1),p=lerp(V(a.x,.22,a.z),V(b.x,.22,b.z),t);p.y+=(e[3]?.34:.10);circle3(p,.075,e[3]?'#d7a6ff':'#5afcb0',17)}}
-let order=nodes.map((n,i)=>({n,i,depth:camera(n.p).z})).sort((a,b)=>b.depth-a.depth);const hits=[];
-for(let obj of order){let {n,i}=obj,p=n.p;circle3(V(p.x,.0,p.z),.48,'#245479',13);if(n.type==='router'){cube(p,[1.05,.34,.85],n.c);circle3(V(p.x,p.y+.2,p.z),.27,'#c8eeff',9)}else if(n.type==='firewall'){cube(p,[1.35,.85,.64],n.c);for(let j=-1;j<=1;j++)circle3(V(p.x+j*.32,p.y,p.z-.335),.04,'#ffbdc5',5)}else if(n.type==='switch'){cube(p,[1.40,.36,.73],n.c);for(let j=0;j<5;j++)cube(V(p.x-.46+j*.23,p.y-.01,p.z-.39),[.13,.095,.025],'#0b1c32')}else if(n.type==='server'){cube(p,[.73,1.25,.64],n.c);for(let j=0;j<4;j++)cube(V(p.x,p.y-.38+j*.25,p.z-.335),[.52,.055,.016],'#234267')}else if(n.type==='phone'){cube(p,[.37,.8,.13],n.c);cube(V(p.x,p.y,p.z-.075),[.27,.61,.018],'#062b53')}else if(n.type==='ap'){cube(p,[.90,.22,.68],n.c);cube(V(p.x+.25,p.y+.33,p.z+.15),[.06,.58,.06],n.c)}else{cube(p,[.8,.56,.12],n.c);cube(V(p.x,p.y,p.z-.071),[.67,.43,.018],'#092d4d');cube(V(p.x,p.y-.39,p.z),[.12,.24,.18],n.c);cube(V(p.x,p.y-.51,p.z-.15),[.8,.055,.34],n.c)}
-let hoverGlow=i===hover||i===selected;textAt(n.id,V(p.x,p.y+1.02,p.z),hoverGlow?'#ffffff':'#dceeff',12);if(n.role.match(/192\.168/))textAt(n.role,V(p.x,p.y+.76,p.z),'#78f9b7',10,false);let sp=project(V(p.x,p.y,p.z));hits.push({i,x:sp.x,y:sp.y,r:Math.max(19,.68*sp.scale)});
-if(hoverGlow)circle3(V(p.x,.04,p.z),.19,'#fff39d',18)
-}
-// Store the projected interaction targets for click detection
-window.__ciscoHits=hits; requestAnimationFrame(draw)}
-requestAnimationFrame(draw);
-function findNode(x,y){let h=window.__ciscoHits||[],best=-1,dist=1e10;for(let v of h){let d=Math.hypot(x-v.x,y-v.y);if(d<v.r*1.6&&d<dist){best=v.i;dist=d}}return best}
-function select(i){selected=i;if(i<0){info.style.display='none';return}const n=nodes[i];deviceTitle.textContent=n.id;deviceRole.textContent=n.role;deviceInfo.textContent=n.desc;info.style.display='block'}
-canvas.addEventListener('pointerdown',e=>{canvas.setPointerCapture(e.pointerId);down={x:e.clientX,y:e.clientY};last=down;dragging=false});
-canvas.addEventListener('pointermove',e=>{if(last){const dx=e.clientX-last.x,dy=e.clientY-last.y;if(Math.abs(e.clientX-down.x)+Math.abs(e.clientY-down.y)>6)dragging=true;if(dragging){yaw+=dx*.009;pitch=Math.max(.27,Math.min(1.46,pitch+dy*.006));auto=false;document.querySelector('#rotation').textContent='▶ Girar câmera'}last={x:e.clientX,y:e.clientY}}else hover=findNode(e.clientX,e.clientY)});
-canvas.addEventListener('pointerup',e=>{if(!dragging)select(findNode(e.clientX,e.clientY));last=null;down=null;dragging=false});
-canvas.addEventListener('pointercancel',()=>{last=null;down=null});
-canvas.addEventListener('wheel',e=>{e.preventDefault();zoom=Math.max(12,Math.min(29,zoom+Math.sign(e.deltaY)*1.25))},{passive:false});
-document.querySelector('#packets').addEventListener('click',e=>{moving=!moving;e.target.textContent=moving?'⏸ Pausar dados':'▶ Animar dados'});
-document.querySelector('#rotation').addEventListener('click',e=>{auto=!auto;e.target.textContent=auto?'⏸ Parar câmera':'▶ Girar câmera'});
-document.querySelector('#reset').addEventListener('click',()=>{yaw=.33;pitch=.77;zoom=20;auto=true;moving=true;select(-1);document.querySelector('#packets').textContent='⏸ Pausar dados';document.querySelector('#rotation').textContent='⏸ Parar câmera'});
-})();
-</script></body></html>
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Rede Cisco VR · Diagrama de Rede</title>
+    <style>
+      :root {
+        --bg-1: #06131f;
+        --bg-2: #0b2037;
+        --panel: rgba(8, 22, 36, 0.78);
+        --line: rgba(84, 151, 201, 0.62);
+        --text: #edf6ff;
+        --muted: #afd0ee;
+        --cyan: #53d6ff;
+        --green: #72f3b3;
+        --purple: #b69dff;
+        --red: #ff7988;
+        --amber: #ffcb7d;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: radial-gradient(circle at top, var(--bg-2), var(--bg-1) 55%);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      body {
+        position: relative;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .hud {
+        position: fixed;
+        top: 18px;
+        left: 18px;
+        max-width: min(460px, calc(100vw - 36px));
+        background: rgba(7, 20, 33, 0.78);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px 20px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(10px);
+        z-index: 10;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        color: var(--cyan);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(22px, 3vw, 32px);
+        line-height: 1.1;
+      }
+
+      .lead {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .info {
+        position: fixed;
+        right: 18px;
+        top: 18px;
+        width: min(320px, calc(100vw - 36px));
+        background: var(--panel);
+        border: 1px solid rgba(83, 214, 255, 0.56);
+        border-radius: 16px;
+        padding: 18px 18px 16px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.38);
+        z-index: 11;
+      }
+
+      .info.hidden {
+        display: none;
+      }
+
+      .info h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .info .role {
+        display: block;
+        margin-top: 6px;
+        color: var(--cyan);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 11px;
+      }
+
+      .info p {
+        margin: 12px 0 0;
+        color: var(--muted);
+        line-height: 1.6;
+        font-size: 14px;
+      }
+
+      .controls {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        width: min(98vw, 720px);
+        background: rgba(6, 18, 28, 0.72);
+        border: 1px solid rgba(93, 127, 167, 0.7);
+        border-radius: 14px;
+        padding: 10px 12px;
+        z-index: 12;
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(93, 138, 191, 0.8);
+        background: #153452;
+        color: var(--text);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        background: #224b76;
+        transform: translateY(-1px);
+      }
+
+      .legend {
+        position: fixed;
+        left: 18px;
+        bottom: 100px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(7, 19, 29, 0.58);
+        border: 1px solid rgba(116, 153, 196, 0.4);
+        color: #b8d4f1;
+        font-size: 12px;
+        z-index: 10;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .dot.cyan { background: var(--cyan); }
+      .dot.green { background: var(--green); }
+      .dot.purple { background: var(--purple); }
+
+      @media (max-width: 760px) {
+        .hud {
+          top: 12px;
+          left: 12px;
+          width: calc(100vw - 24px);
+          max-width: none;
+          padding: 14px 16px;
+        }
+
+        .info {
+          right: 12px;
+          top: auto;
+          bottom: 96px;
+          width: min(280px, calc(100vw - 24px));
+        }
+
+        .controls {
+          gap: 8px;
+          bottom: 10px;
+          width: calc(100vw - 18px);
+        }
+
+        button {
+          flex: 1 1 calc(33.33% - 8px);
+          min-width: 90px;
+        }
+
+        .legend {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <div class="eyebrow">Cisco • VR Experience</div>
+      <h1>Rede Cisco 3D interativa</h1>
+      <p class="lead">Caminhe pelo diagrama para entender o papel da internet, firewall, switches, servidor e Wi‑Fi.</p>
+    </div>
+
+    <aside id="infoPanel" class="info hidden">
+      <h2 id="deviceName">Dispositivo</h2>
+      <span id="deviceRole" class="role">Função</span>
+      <p id="deviceDescription">Detalhes da rede.</p>
+    </aside>
+
+    <div class="legend">
+      <span class="dot cyan"></span>Tráfego Ethernet<br />
+      <span class="dot green"></span>Conexão Wi‑Fi
+    </div>
+
+    <div class="controls">
+      <button id="prevStop">Anterior</button>
+      <button id="nextStop">Próximo ponto</button>
+      <button id="tourToggle">Pausar rota</button>
+      <button id="resetView">Visão geral</button>
+    </div>
+
+    <script type="module">
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+      import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+      import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/VRButton.js';
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060d17);
+      scene.fog = new THREE.Fog(0x060d17, 14, 44);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.shadowMap.enabled = true;
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 200);
+      camera.position.set(0, 2.2, 13);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.enablePan = false;
+      controls.minDistance = 5;
+      controls.maxDistance = 26;
+      controls.target.set(0, 1.5, 0);
+      controls.update();
+
+      const ambientLight = new THREE.HemisphereLight(0xbeecff, 0x0d1723, 1.3);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+      keyLight.position.set(7, 12, 8);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      scene.add(keyLight);
+
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(16, 80),
+        new THREE.MeshStandardMaterial({ color: 0x112843, roughness: 0.85, metalness: 0.2 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.14;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const grid = new THREE.GridHelper(28, 28, 0x1b5a8a, 0x1b5a8a);
+      grid.position.y = -0.12;
+      grid.material.opacity = 0.35;
+      grid.material.transparent = true;
+      scene.add(grid);
+
+      const deviceData = [
+        { id: 'router', name: 'ROTEADOR 1941', type: 'router', color: 0x38a7ff, position: new THREE.Vector3(0, 0.8, 6), role: 'Gateway de internet', description: 'Distribui a conexão de internet e gerencia a entrada e saída de tráfego.' },
+        { id: 'firewall', name: 'FIREWALL 5506-X', type: 'firewall', color: 0xff5c73, position: new THREE.Vector3(0, 0.8, 2.3), role: 'Segurança', description: 'Monitora e filtra os pacotes para impedir acesso não autorizado e manter a rede protegida.' },
+        { id: 'switchA', name: 'SWITCH A', type: 'switch', color: 0x38a7ff, position: new THREE.Vector3(-4.5, 0.7, -0.5), role: 'Distribuição de rede', description: 'Conecta o servidor e os computadores da área interna principal.' },
+        { id: 'switchB', name: 'SWITCH B', type: 'switch', color: 0x38a7ff, position: new THREE.Vector3(4.5, 0.7, -0.5), role: 'Distribuição de rede', description: 'Conecta usuários e equipamentos da área complementar e o ponto de acesso Wi‑Fi.' },
+        { id: 'server', name: 'SERVIDOR', type: 'server', color: 0xb08cff, position: new THREE.Vector3(-7.6, 1.2, -3.9), role: '192.168.10.2', description: 'Armazena arquivos, serviços e dados essenciais para a operação da rede corporativa.' },
+        { id: 'pc01', name: 'PC 01', type: 'pc', color: 0x66e1ff, position: new THREE.Vector3(-5.2, 0.7, -6.2), role: '192.168.10.11', description: 'Computador do funcionário conectado ao Switch A, com acesso ao servidor e aplicações internas.' },
+        { id: 'pc02', name: 'PC 02', type: 'pc', color: 0x66e1ff, position: new THREE.Vector3(-2.8, 0.7, -6.2), role: '192.168.10.12', description: 'Estação adicional da rede interna que participa da comunicação com os serviços da empresa.' },
+        { id: 'pc03', name: 'PC 03', type: 'pc', color: 0x7ef5be, position: new THREE.Vector3(2.7, 0.7, -6.2), role: '192.168.10.51', description: 'Computador conectado ao Switch B e responsável por tarefas de escritório e acesso ao ambiente digital.' },
+        { id: 'pc04', name: 'PC 04', type: 'pc', color: 0x7ef5be, position: new THREE.Vector3(5.2, 0.7, -6.2), role: '192.168.10.52', description: 'Estação do setor de atendimento e operações da rede local.' },
+        { id: 'ap', name: 'ACCESS POINT', type: 'ap', color: 0xc599ff, position: new THREE.Vector3(8.2, 0.8, 2.8), role: 'Wi‑Fi', description: 'Disponibiliza rede sem fio para dispositivos móveis e visitantes dentro do ambiente corporativo.' },
+        { id: 'laptop', name: 'LAPTOP', type: 'phone', color: 0x66e1ff, position: new THREE.Vector3(7.2, 0.7, 6.1), role: 'Visitante Wi‑Fi', description: 'Notebook conectado ao Access Point, acessando a rede sem fio para operação e navegação.' },
+        { id: 'smartphone', name: 'SMARTPHONE', type: 'phone', color: 0x7ef5be, position: new THREE.Vector3(9.8, 0.7, 6.1), role: 'Visitante Wi‑Fi', description: 'Dispositivo móvel do visitante que se conecta ao Wi‑Fi para acessar serviços e internet.' }
+      ];
+
+      const routeStops = [
+        { name: 'router', label: 'Internet e gateway', position: new THREE.Vector3(0, 1.8, 11) },
+        { name: 'firewall', label: 'Segurança', position: new THREE.Vector3(0, 1.8, 6.2) },
+        { name: 'switchA', label: 'Switch A', position: new THREE.Vector3(-6, 1.8, 3.2) },
+        { name: 'server', label: 'Servidor', position: new THREE.Vector3(-9, 1.8, -2.2) },
+        { name: 'switchB', label: 'Switch B', position: new THREE.Vector3(6, 1.8, 3.2) },
+        { name: 'ap', label: 'Wi‑Fi', position: new THREE.Vector3(9.5, 1.8, 8) }
+      ];
+
+      const links = [
+        ['router', 'firewall'],
+        ['firewall', 'switchA'],
+        ['firewall', 'switchB'],
+        ['switchA', 'server'],
+        ['switchA', 'pc01'],
+        ['switchA', 'pc02'],
+        ['switchB', 'pc03'],
+        ['switchB', 'pc04'],
+        ['switchB', 'ap'],
+        ['ap', 'laptop'],
+        ['ap', 'smartphone']
+      ];
+
+      const nodeMap = new Map();
+      const interactiveObjects = [];
+      let currentStop = 0;
+      let autoTravel = true;
+      let selectedDevice = null;
+      let routeTimer = 0;
+      let pointerDown = false;
+
+      function createTextSprite(text, color = '#eaf7ff', fontSize = 54) {
+        const canvasTexture = document.createElement('canvas');
+        const context = canvasTexture.getContext('2d');
+        canvasTexture.width = 512;
+        canvasTexture.height = 128;
+        context.clearRect(0, 0, canvasTexture.width, canvasTexture.height);
+        context.font = '700 ' + fontSize + 'px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.strokeStyle = 'rgba(0,0,0,0.7)';
+        context.lineWidth = 10;
+        context.strokeText(text, 256, 64);
+        context.fillStyle = color;
+        context.fillText(text, 256, 64);
+
+        const texture = new THREE.CanvasTexture(canvasTexture);
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(4.4, 1.1, 1);
+        return sprite;
+      }
+
+      function updateInfoPanel(device) {
+        const panelTitle = document.getElementById('deviceName');
+        const panelRole = document.getElementById('deviceRole');
+        const panelDescription = document.getElementById('deviceDescription');
+        panelTitle.textContent = device.name;
+        panelRole.textContent = device.role;
+        panelDescription.textContent = device.description;
+        document.getElementById('infoPanel').classList.remove('hidden');
+      }
+
+      function hideInfoPanel() {
+        document.getElementById('infoPanel').classList.add('hidden');
+      }
+
+      function addNode(device) {
+        const group = new THREE.Group();
+        group.position.copy(device.position);
+        group.userData.device = device;
+
+        const coreMaterial = new THREE.MeshStandardMaterial({
+          color: device.color,
+          emissive: device.color,
+          emissiveIntensity: 0.25,
+          metalness: 0.4,
+          roughness: 0.45
+        });
+
+        if (device.type === 'router') {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.9, 1.4), coreMaterial);
+          body.castShadow = true;
+          body.position.y = 0.2;
+          group.add(body);
+
+          const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 16), new THREE.MeshStandardMaterial({ color: 0xbfe9ff }));
+          antenna.position.set(0.6, 1.1, 0.45);
+          group.add(antenna);
+
+          const antenna2 = antenna.clone();
+          antenna2.position.set(-0.6, 1.1, 0.45);
+          group.add(antenna2);
+        }
+
+        if (device.type === 'firewall') {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.2, 1.2), coreMaterial);
+          body.castShadow = true;
+          body.position.y = 0.3;
+          group.add(body);
+
+          const panel = new THREE.Mesh(
+            new THREE.BoxGeometry(1.8, 0.35, 0.08),
+            new THREE.MeshStandardMaterial({ color: 0x111a27, emissive: 0xff5c73, emissiveIntensity: 0.5 })
+          );
+          panel.position.set(0, 0.55, 0.66);
+          group.add(panel);
+        }
+
+        if (device.type === 'switch') {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 1.2), coreMaterial);
+          body.castShadow = true;
+          group.add(body);
+
+          for (let i = -2; i <= 2; i++) {
+            const port = new THREE.Mesh(
+              new THREE.BoxGeometry(0.14, 0.12, 0.06),
+              new THREE.MeshStandardMaterial({ color: 0xdff4ff, emissive: 0x9fe7ff, emissiveIntensity: 0.5 })
+            );
+            port.position.set(i * 0.36, -0.2, 0.7);
+            group.add(port);
+          }
+        }
+
+        if (device.type === 'server') {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.3, 1.5), coreMaterial);
+          body.castShadow = true;
+          body.position.y = 0.6;
+          group.add(body);
+
+          const rack = new THREE.Mesh(
+            new THREE.BoxGeometry(1.2, 1.8, 0.1),
+            new THREE.MeshStandardMaterial({ color: 0x1a2230, emissive: 0xb08cff, emissiveIntensity: 0.28 })
+          );
+          rack.position.set(0, 0.6, 0.82);
+          group.add(rack);
+        }
+
+        if (device.type === 'pc') {
+          const monitor = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.18), coreMaterial);
+          monitor.position.set(0, 0.85, 0);
+          monitor.castShadow = true;
+          group.add(monitor);
+
+          const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.6), new THREE.MeshStandardMaterial({ color: 0x1b2638, emissive: device.color, emissiveIntensity: 0.15 }));
+          base.position.set(0, 0.45, 0);
+          group.add(base);
+        }
+
+        if (device.type === 'ap') {
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.35, 24), coreMaterial);
+          body.castShadow = true;
+          body.position.y = 0.7;
+          group.add(body);
+
+          const disk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.15, 24), new THREE.MeshStandardMaterial({ color: 0xe8f8ff, emissive: 0xb79aff, emissiveIntensity: 0.4 }));
+          disk.position.y = 1.1;
+          group.add(disk);
+        }
+
+        if (device.type === 'phone') {
+          const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.2, 0.18), coreMaterial);
+          body.castShadow = true;
+          group.add(body);
+
+          const screen = new THREE.Mesh(
+            new THREE.BoxGeometry(0.55, 0.95, 0.04),
+            new THREE.MeshStandardMaterial({ color: 0x0d1723, emissive: device.color, emissiveIntensity: 0.3 })
+          );
+          screen.position.z = 0.1;
+          group.add(screen);
+        }
+
+        const label = createTextSprite(device.name.substring(0, 15), '#f2fbff', 48);
+        label.position.set(0, 2.2, 0);
+        group.add(label);
+
+        scene.add(group);
+        nodeMap.set(device.id, group);
+        group.traverse((child) => {
+          if (child.isMesh) {
+            child.userData.device = device;
+            interactiveObjects.push(child);
+          }
+        });
+      }
+
+      for (const device of deviceData) {
+        addNode(device);
+      }
+
+      function addLink(aId, bId) {
+        const a = nodeMap.get(aId);
+        const b = nodeMap.get(bId);
+        if (!a || !b) return;
+
+        const material = new THREE.LineBasicMaterial({ color: a.userData.device.type === 'phone' || b.userData.device.type === 'phone' ? 0x87f2bd : 0x4ccaf7, transparent: true, opacity: 0.9 });
+        const geometry = new THREE.BufferGeometry().setFromPoints([a.position.clone(), b.position.clone()]);
+        const line = new THREE.Line(geometry, material);
+        line.userData.link = true;
+        scene.add(line);
+
+        const pulse = new THREE.Mesh(
+          new THREE.SphereGeometry(0.1, 12, 12),
+          new THREE.MeshBasicMaterial({ color: 0x7ef5be, transparent: true, opacity: 0.9 })
+        );
+        pulse.position.copy(a.position.clone().lerp(b.position, 0.5));
+        pulse.visible = false;
+        line.userData.pulse = pulse;
+        scene.add(pulse);
+      }
+
+      for (const [a, b] of links) {
+        addLink(a, b);
+      }
+
+      function showRouteStop(index) {
+        currentStop = (index + routeStops.length) % routeStops.length;
+        const stop = routeStops[currentStop];
+        const target = nodeMap.get(stop.name);
+        if (!target) return;
+
+        const focusPosition = new THREE.Vector3(3.6, 2.1, 3.6);
+        const lookAt = target.position.clone();
+        camera.position.lerp(lookAt.clone().add(focusPosition), 0.18);
+        controls.target.lerp(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)), 0.18);
+        controls.update();
+
+        const device = target.userData.device;
+        selectedDevice = device;
+        updateInfoPanel(device);
+      }
+
+      function resetOverview() {
+        camera.position.set(0, 2.2, 13);
+        controls.target.set(0, 1.4, 0);
+        controls.update();
+        selectedDevice = null;
+        hideInfoPanel();
+      }
+
+      document.getElementById('nextStop').addEventListener('click', () => {
+        showRouteStop(currentStop + 1);
+      });
+
+      document.getElementById('prevStop').addEventListener('click', () => {
+        showRouteStop(currentStop - 1);
+      });
+
+      document.getElementById('tourToggle').addEventListener('click', () => {
+        autoTravel = !autoTravel;
+        document.getElementById('tourToggle').textContent = autoTravel ? 'Pausar rota' : 'Retomar rota';
+      });
+
+      document.getElementById('resetView').addEventListener('click', () => {
+        resetOverview();
+      });
+
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+
+      function handlePointerMove(event) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      }
+
+      renderer.domElement.addEventListener('pointerdown', (event) => {
+        pointerDown = true;
+        handlePointerMove(event);
+      });
+
+      renderer.domElement.addEventListener('pointerup', (event) => {
+        if (!pointerDown) return;
+        pointerDown = false;
+        handlePointerMove(event);
+
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(interactiveObjects, false);
+        if (hits.length > 0) {
+          const hit = hits[0].object.userData.device;
+          if (hit) {
+            const targetNode = nodeMap.get(hit.id);
+            if (targetNode) {
+              const lookAt = targetNode.position.clone();
+              camera.position.lerp(lookAt.clone().add(new THREE.Vector3(3.2, 2.1, 3.2)), 0.2);
+              controls.target.lerp(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)), 0.2);
+              updateInfoPanel(hit);
+            }
+          }
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      document.body.appendChild(VRButton.createButton(renderer));
+
+      function animate() {
+        renderer.setAnimationLoop(() => {
+          if (autoTravel && !renderer.xr.isPresenting) {
+            routeTimer += 0.008;
+            if (routeTimer > 1.4) {
+              routeTimer = 0;
+              showRouteStop(currentStop + 1);
+            }
+          }
+
+          scene.children.forEach((child) => {
+            if (child.userData.link === true && child.userData.pulse) {
+              const pulse = child.userData.pulse;
+              const posArray = child.geometry.attributes.position.array;
+              const from = new THREE.Vector3(posArray[0], posArray[1], posArray[2]);
+              const to = new THREE.Vector3(posArray[3], posArray[4], posArray[5]);
+              const t = (performance.now() * 0.0015 + child.id || 0) % 1;
+              const point = from.clone().lerp(to, t);
+              pulse.position.set(point.x, point.y + 0.8, point.z);
+              pulse.visible = true;
+              pulse.scale.setScalar(0.9 + Math.sin(performance.now() * 0.01 + child.id * 10) * 0.2);
+            }
+          });
+
+          controls.update();
+          renderer.render(scene, camera);
+        });
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
