@@ -331,14 +331,14 @@
       renderer.xr.enabled = true;
       document.body.appendChild(renderer.domElement);
 
-      const camera = new THREE.PerspectiveCamera(72, window.innerWidth / window.innerHeight, 0.1, 200);
-      camera.position.set(0, 3.2, 20);
+      const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.1, 260);
+      camera.position.set(0, 4.2, 30);
 
       const controls = new OrbitControls(camera, renderer.domElement);
       controls.enableDamping = true;
       controls.enablePan = false;
       controls.minDistance = 8;
-      controls.maxDistance = 36;
+      controls.maxDistance = 48;
       controls.target.set(0, 1.5, 0);
       controls.update();
 
@@ -387,7 +387,7 @@
       scene.add(keyLight);
 
       const floor = new THREE.Mesh(
-        new THREE.CircleGeometry(16, 80),
+        new THREE.CircleGeometry(26, 100),
         new THREE.MeshStandardMaterial({ color: 0x112843, roughness: 0.85, metalness: 0.2 })
       );
       floor.rotation.x = -Math.PI / 2;
@@ -395,7 +395,7 @@
       floor.receiveShadow = true;
       scene.add(floor);
 
-      const grid = new THREE.GridHelper(28, 28, 0x1b5a8a, 0x1b5a8a);
+      const grid = new THREE.GridHelper(48, 48, 0x1b5a8a, 0x1b5a8a);
       grid.position.y = -0.12;
       grid.material.opacity = 0.35;
       grid.material.transparent = true;
@@ -417,12 +417,12 @@
       ];
 
       const routeStops = [
-        { name: 'router', label: 'Internet e gateway', position: new THREE.Vector3(0, 3.2, 16) },
-        { name: 'firewall', label: 'Segurança', position: new THREE.Vector3(0, 3.0, 12) },
-        { name: 'switchA', label: 'Switch A', position: new THREE.Vector3(-8.5, 3.0, 5.5) },
-        { name: 'server', label: 'Servidor', position: new THREE.Vector3(-12.5, 3.4, -1.8) },
-        { name: 'switchB', label: 'Switch B', position: new THREE.Vector3(8.5, 3.0, 5.5) },
-        { name: 'ap', label: 'Wi‑Fi', position: new THREE.Vector3(13, 3.0, 9) }
+        { name: 'router', label: 'Internet e gateway', position: new THREE.Vector3(0, 4.5, 24) },
+        { name: 'firewall', label: 'Segurança', position: new THREE.Vector3(0, 4.2, 18) },
+        { name: 'switchA', label: 'Switch A', position: new THREE.Vector3(-12, 4.2, 10) },
+        { name: 'server', label: 'Servidor', position: new THREE.Vector3(-18, 5.0, -8) },
+        { name: 'switchB', label: 'Switch B', position: new THREE.Vector3(12, 4.2, 10) },
+        { name: 'ap', label: 'Wi‑Fi', position: new THREE.Vector3(17, 4.2, 14) }
       ];
 
       const links = [
@@ -469,7 +469,7 @@
         const texture = new THREE.CanvasTexture(canvasTexture);
         const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
         const sprite = new THREE.Sprite(material);
-        sprite.scale.set(4.4, 1.1, 1);
+        sprite.scale.set(5.2, 1.3, 1);
         return sprite;
       }
 
@@ -490,8 +490,8 @@
       function addNode(device) {
         const group = new THREE.Group();
         group.position.copy(device.position);
-        group.position.x *= 1.25;
-        group.position.z *= 1.25;
+        group.position.x *= 1.75;
+        group.position.z *= 1.75;
         group.userData.device = device;
 
         const coreMaterial = new THREE.MeshStandardMaterial({
@@ -596,7 +596,7 @@
         }
 
         const label = createTextSprite(device.name.substring(0, 15), '#f2fbff', 48);
-        label.position.set(0, 2.2, 0);
+        label.position.set(0, 3.0, 0);
         group.add(label);
 
         scene.add(group);
@@ -644,7 +644,7 @@
         const target = nodeMap.get(stop.name);
         if (!target) return;
 
-        const focusPosition = new THREE.Vector3(7, 3.5, 7);
+        const focusPosition = new THREE.Vector3(11, 5.5, 11);
         const lookAt = target.position.clone();
 
         if (stereoMode) {
@@ -665,7 +665,7 @@
       }
 
       function resetOverview() {
-        camera.position.set(0, 3.2, 20);
+        camera.position.set(0, 4.2, 30);
         controls.target.set(0, 1.4, 0);
         controls.update();
         selectedDevice = null;
