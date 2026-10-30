@@ -103,6 +103,19 @@
         display: none;
       }
 
+      .info::after {
+        content: '';
+        position: absolute;
+        left: 28px;
+        bottom: -12px;
+        width: 20px;
+        height: 20px;
+        background: var(--panel);
+        border-right: 1px solid rgba(83, 214, 255, 0.56);
+        border-bottom: 1px solid rgba(83, 214, 255, 0.56);
+        transform: rotate(45deg);
+      }
+
       .info h2 {
         margin: 0;
         font-size: 1.1rem;
@@ -186,9 +199,38 @@
       .dot.purple { background: var(--purple); }
 
       body.vr-stereo .hud,
-      body.vr-stereo .legend,
-      body.vr-stereo .info {
+      body.vr-stereo .legend {
         display: none !important;
+      }
+
+      body.vr-stereo .info {
+        display: block !important;
+        position: fixed;
+        left: 50%;
+        right: auto;
+        top: 3vh;
+        bottom: auto;
+        width: min(780px, 72vw);
+        max-height: 34vh;
+        overflow: hidden;
+        transform: translateX(-50%);
+        padding: 10px 18px 12px;
+        font-size: clamp(11px, 1.4vw, 16px);
+        z-index: 20;
+      }
+
+      body.vr-stereo .info.hidden {
+        display: none !important;
+      }
+
+      body.vr-stereo .info h2 {
+        font-size: clamp(16px, 2vw, 22px);
+      }
+
+      body.vr-stereo .info p {
+        margin-top: 6px;
+        font-size: clamp(11px, 1.35vw, 15px);
+        line-height: 1.35;
       }
 
       body.vr-stereo {
@@ -360,7 +402,7 @@
       scene.add(grid);
 
       const deviceData = [
-        { id: 'router', name: 'ROTEADOR 1941', type: 'router', color: 0x38a7ff, position: new THREE.Vector3(0, 0.8, 6), role: 'Gateway de internet', description: 'Distribui a conexão de internet e gerencia a entrada e saída de tráfego.' },
+        { id: 'router', name: 'ROTEADOR 1941', type: 'router', color: 0x38a7ff, position: new THREE.Vector3(0, 0.8, 6), role: 'Cisco 1941 · ISR G2', description: 'Roteador corporativo modular Cisco 1941 (ISR G2) voltado para filiais e pequenos escritórios. Possui 2 portas Gigabit Ethernet, 2 slots de expansão EHWIC e memória padrão de 512 MB DRAM. Não é plug-and-play: é configurado via linha de comando (CLI) por meio de cabo console.' },
         { id: 'firewall', name: 'FIREWALL 5506-X', type: 'firewall', color: 0xff5c73, position: new THREE.Vector3(0, 0.8, 2.3), role: 'Segurança', description: 'Monitora e filtra os pacotes para impedir acesso não autorizado e manter a rede protegida.' },
         { id: 'switchA', name: 'SWITCH A', type: 'switch', color: 0x38a7ff, position: new THREE.Vector3(-4.5, 0.7, -0.5), role: 'Distribuição de rede', description: 'Conecta o servidor e os computadores da área interna principal.' },
         { id: 'switchB', name: 'SWITCH B', type: 'switch', color: 0x38a7ff, position: new THREE.Vector3(4.5, 0.7, -0.5), role: 'Distribuição de rede', description: 'Conecta usuários e equipamentos da área complementar e o ponto de acesso Wi‑Fi.' },
@@ -791,7 +833,8 @@
         renderer.setAnimationLoop(() => {
           if (autoTravel && !renderer.xr.isPresenting) {
             routeTimer += 0.008;
-            if (routeTimer > 1.4) {
+            const dwellTime = stereoMode && currentStop === 0 ? 4.8 : 1.4;
+            if (routeTimer > dwellTime) {
               routeTimer = 0;
               showRouteStop(currentStop + 1);
             }
