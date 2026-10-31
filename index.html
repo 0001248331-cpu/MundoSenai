@@ -441,6 +441,7 @@
 
       const nodeMap = new Map();
       const interactiveObjects = [];
+      const wirelessWaves = [];
       let currentStop = 0;
       let autoTravel = true;
       let selectedDevice = null;
@@ -501,98 +502,127 @@
           metalness: 0.4,
           roughness: 0.45
         });
+        const shellMaterial = new THREE.MeshStandardMaterial({ color: 0x596165, metalness: 0.52, roughness: 0.4 });
+        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x171d20, metalness: 0.22, roughness: 0.48 });
+        const trimMaterial = new THREE.MeshStandardMaterial({ color: 0x9ba2a3, metalness: 0.62, roughness: 0.32 });
+        const screenMaterial = new THREE.MeshStandardMaterial({ color: 0x081115, metalness: 0.18, roughness: 0.2 });
+        const ledMaterial = new THREE.MeshStandardMaterial({ color: device.color, emissive: device.color, emissiveIntensity: 0.45, roughness: 0.3 });
+        const portMaterial = new THREE.MeshStandardMaterial({ color: 0x080c0e, metalness: 0.18, roughness: 0.62 });
+        const addBox = (width, height, depth, material, x, y, z) => {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+          mesh.position.set(x, y, z);
+          mesh.castShadow = true;
+          group.add(mesh);
+          return mesh;
+        };
 
         if (device.type === 'router') {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.9, 1.4), coreMaterial);
-          body.castShadow = true;
-          body.position.y = 0.2;
-          group.add(body);
-
-          const antenna = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.7, 16), new THREE.MeshStandardMaterial({ color: 0xbfe9ff }));
-          antenna.position.set(0.6, 1.1, 0.45);
-          group.add(antenna);
-
-          const antenna2 = antenna.clone();
-          antenna2.position.set(-0.6, 1.1, 0.45);
-          group.add(antenna2);
+          addBox(2.6, 0.62, 1.55, shellMaterial, 0, 0.18, 0);
+          addBox(2.38, 0.38, 0.035, darkMaterial, 0, 0.18, 0.79);
+          addBox(0.66, 0.2, 0.045, portMaterial, -0.75, 0.2, 0.83);
+          addBox(0.66, 0.2, 0.045, portMaterial, 0, 0.2, 0.83);
+          for (let index = 0; index < 3; index++) {
+            addBox(0.06, 0.035, 0.025, ledMaterial, -1.08 + index * 0.13, 0.05, 0.83);
+          }
+          for (let index = 0; index < 6; index++) {
+            addBox(0.035, 0.22, 0.02, trimMaterial, 0.52 + index * 0.09, 0.2, 0.83);
+          }
         }
 
         if (device.type === 'firewall') {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(2.8, 1.2, 1.2), coreMaterial);
-          body.castShadow = true;
-          body.position.y = 0.3;
-          group.add(body);
-
-          const panel = new THREE.Mesh(
-            new THREE.BoxGeometry(1.8, 0.35, 0.08),
-            new THREE.MeshStandardMaterial({ color: 0x111a27, emissive: 0xff5c73, emissiveIntensity: 0.5 })
-          );
-          panel.position.set(0, 0.55, 0.66);
-          group.add(panel);
+          addBox(2.8, 0.72, 1.35, shellMaterial, 0, 0.18, 0);
+          addBox(2.55, 0.44, 0.035, darkMaterial, 0, 0.18, 0.69);
+          for (let index = 0; index < 8; index++) {
+            addBox(0.045, 0.24, 0.025, trimMaterial, -0.95 + index * 0.13, 0.18, 0.73);
+          }
+          addBox(0.4, 0.18, 0.05, portMaterial, 0.9, 0.18, 0.73);
+          addBox(0.06, 0.035, 0.025, ledMaterial, -1.12, 0.02, 0.73);
         }
 
         if (device.type === 'switch') {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(2.2, 0.8, 1.2), coreMaterial);
-          body.castShadow = true;
-          group.add(body);
-
-          for (let i = -2; i <= 2; i++) {
-            const port = new THREE.Mesh(
-              new THREE.BoxGeometry(0.14, 0.12, 0.06),
-              new THREE.MeshStandardMaterial({ color: 0xdff4ff, emissive: 0x9fe7ff, emissiveIntensity: 0.5 })
-            );
-            port.position.set(i * 0.36, -0.2, 0.7);
-            group.add(port);
+          addBox(2.75, 0.5, 1.5, shellMaterial, 0, 0, 0);
+          addBox(2.6, 0.3, 0.035, darkMaterial, 0, 0, 0.77);
+          for (let index = 0; index < 8; index++) {
+            const x = -1.05 + index * 0.3;
+            addBox(0.2, 0.17, 0.04, portMaterial, x, -0.02, 0.81);
+            addBox(0.035, 0.035, 0.025, ledMaterial, x, 0.13, 0.81);
           }
         }
 
         if (device.type === 'server') {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.3, 1.5), coreMaterial);
-          body.castShadow = true;
-          body.position.y = 0.6;
-          group.add(body);
-
-          const rack = new THREE.Mesh(
-            new THREE.BoxGeometry(1.2, 1.8, 0.1),
-            new THREE.MeshStandardMaterial({ color: 0x1a2230, emissive: 0xb08cff, emissiveIntensity: 0.28 })
-          );
-          rack.position.set(0, 0.6, 0.82);
-          group.add(rack);
+          addBox(1.55, 0.12, 1.15, darkMaterial, 0, 0.06, 0);
+          addBox(0.12, 2.35, 1.05, darkMaterial, -0.72, 1.25, 0);
+          addBox(0.12, 2.35, 1.05, darkMaterial, 0.72, 1.25, 0);
+          addBox(1.55, 0.12, 1.05, darkMaterial, 0, 2.43, 0);
+          addBox(1.35, 2.2, 0.06, darkMaterial, 0, 1.25, -0.53);
+          addBox(0.07, 2.18, 0.06, trimMaterial, -0.57, 1.25, 0.57);
+          addBox(0.07, 2.18, 0.06, trimMaterial, 0.57, 1.25, 0.57);
+          for (let row = 0; row < 3; row++) {
+            const y = 0.55 + row * 0.67;
+            addBox(1.05, 0.48, 0.68, shellMaterial, 0, y, 0.03);
+            addBox(0.96, 0.34, 0.035, darkMaterial, 0, y, 0.4);
+            for (let index = 0; index < 6; index++) {
+              addBox(0.025, 0.2, 0.02, trimMaterial, -0.37 + index * 0.075, y, 0.43);
+            }
+            addBox(0.045, 0.045, 0.025, ledMaterial, 0.39, y - 0.1, 0.43);
+          }
         }
 
         if (device.type === 'pc') {
-          const monitor = new THREE.Mesh(new THREE.BoxGeometry(1.1, 0.7, 0.18), coreMaterial);
-          monitor.position.set(0, 0.85, 0);
-          monitor.castShadow = true;
-          group.add(monitor);
-
-          const base = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.12, 0.6), new THREE.MeshStandardMaterial({ color: 0x1b2638, emissive: device.color, emissiveIntensity: 0.15 }));
-          base.position.set(0, 0.45, 0);
-          group.add(base);
+          addBox(1.32, 0.88, 0.14, darkMaterial, 0, 1.42, 0);
+          addBox(1.18, 0.72, 0.025, screenMaterial, 0, 1.43, 0.083);
+          addBox(0.12, 0.48, 0.16, trimMaterial, 0, 0.88, 0);
+          addBox(0.78, 0.09, 0.5, darkMaterial, 0, 0.62, 0.02);
+          addBox(1.1, 0.1, 0.36, shellMaterial, 0, 0.16, 0.68);
+          addBox(0.42, 0.05, 0.16, screenMaterial, 0, 0.22, 0.68);
+          for (let row = 0; row < 3; row++) {
+            addBox(0.88, 0.015, 0.018, trimMaterial, 0, 0.22, 0.56 + row * 0.075);
+          }
+          addBox(0.48, 1.12, 0.82, shellMaterial, 0.95, 0.62, -0.08);
+          addBox(0.34, 0.75, 0.035, darkMaterial, 0.95, 0.64, 0.34);
+          addBox(0.045, 0.045, 0.025, ledMaterial, 0.95, 0.96, 0.37);
         }
 
         if (device.type === 'ap') {
-          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.65, 0.65, 0.35, 24), coreMaterial);
+          const ceilingPlate = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.08, 1.75), new THREE.MeshStandardMaterial({ color: 0xd8d9d4, roughness: 0.82 }));
+          ceilingPlate.position.y = 1.18;
+          group.add(ceilingPlate);
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.86, 0.2, 32), new THREE.MeshStandardMaterial({ color: 0xe5e6e2, roughness: 0.7 }));
+          body.position.y = 1.0;
           body.castShadow = true;
-          body.position.y = 0.7;
           group.add(body);
-
-          const disk = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.2, 0.15, 24), new THREE.MeshStandardMaterial({ color: 0xe8f8ff, emissive: 0xb79aff, emissiveIntensity: 0.4 }));
-          disk.position.y = 1.1;
-          group.add(disk);
+          const face = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.035, 32), new THREE.MeshStandardMaterial({ color: 0xc5c9c7, roughness: 0.68 }));
+          face.position.y = 0.88;
+          group.add(face);
+          const indicator = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), ledMaterial);
+          indicator.position.set(0, 0.86, 0.58);
+          group.add(indicator);
+          for (let index = 0; index < 3; index++) {
+            const wave = new THREE.Mesh(
+              new THREE.TorusGeometry(0.48, 0.018, 6, 48),
+              new THREE.MeshBasicMaterial({ color: 0x78edc3, transparent: true, opacity: 0.32, depthWrite: false })
+            );
+            wave.rotation.x = Math.PI / 2;
+            wave.position.y = 1.4;
+            wave.userData.phase = index / 3;
+            group.add(wave);
+            wirelessWaves.push(wave);
+          }
         }
 
-        if (device.type === 'phone') {
-          const body = new THREE.Mesh(new THREE.BoxGeometry(0.7, 1.2, 0.18), coreMaterial);
-          body.castShadow = true;
-          group.add(body);
+        if (device.type === 'phone' && device.id === 'laptop') {
+          addBox(1.2, 0.09, 0.82, shellMaterial, 0, 0.12, 0.05);
+          addBox(1.12, 0.72, 0.07, darkMaterial, 0, 0.53, -0.34);
+          addBox(1.0, 0.6, 0.025, screenMaterial, 0, 0.54, -0.295);
+          addBox(0.72, 0.015, 0.28, trimMaterial, 0, 0.18, 0.13);
+        }
 
-          const screen = new THREE.Mesh(
-            new THREE.BoxGeometry(0.55, 0.95, 0.04),
-            new THREE.MeshStandardMaterial({ color: 0x0d1723, emissive: device.color, emissiveIntensity: 0.3 })
-          );
-          screen.position.z = 0.1;
-          group.add(screen);
+        if (device.type === 'phone' && device.id !== 'laptop') {
+          addBox(0.7, 1.2, 0.16, darkMaterial, 0, 0.25, 0);
+          addBox(0.59, 0.98, 0.025, screenMaterial, 0, 0.27, 0.093);
+          const cameraLens = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 10), trimMaterial);
+          cameraLens.position.set(0, 0.77, 0.105);
+          group.add(cameraLens);
         }
 
         const label = createTextSprite(device.name.substring(0, 15), '#f2fbff', 48);
@@ -618,20 +648,44 @@
         const b = nodeMap.get(bId);
         if (!a || !b) return;
 
-        const material = new THREE.LineBasicMaterial({ color: a.userData.device.type === 'phone' || b.userData.device.type === 'phone' ? 0x87f2bd : 0x4ccaf7, transparent: true, opacity: 0.9 });
-        const geometry = new THREE.BufferGeometry().setFromPoints([a.position.clone(), b.position.clone()]);
+        const isWireless = a.userData.device.type === 'ap' || b.userData.device.type === 'ap';
+        const start = a.position.clone();
+        const end = b.position.clone();
+        start.y += isWireless ? 1.4 : 0.65;
+        end.y += isWireless ? 0.9 : 0.65;
+        const curve = isWireless
+          ? new THREE.QuadraticBezierCurve3(
+            start,
+            new THREE.Vector3((start.x + end.x) / 2, Math.max(start.y, end.y) + 2.2, (start.z + end.z) / 2),
+            end
+          )
+          : new THREE.LineCurve3(start, end);
+        const material = isWireless
+          ? new THREE.LineDashedMaterial({ color: 0x78edc3, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.55 })
+          : new THREE.LineBasicMaterial({ color: 0x4ccaf7, transparent: true, opacity: 0.7 });
+        const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(isWireless ? 40 : 1));
         const line = new THREE.Line(geometry, material);
+        if (isWireless) line.computeLineDistances();
         line.userData.link = true;
+        line.userData.curve = curve;
+        line.userData.packets = [];
         scene.add(line);
 
-        const pulse = new THREE.Mesh(
-          new THREE.SphereGeometry(0.1, 12, 12),
-          new THREE.MeshBasicMaterial({ color: 0x7ef5be, transparent: true, opacity: 0.9 })
-        );
-        pulse.position.copy(a.position.clone().lerp(b.position, 0.5));
-        pulse.visible = false;
-        line.userData.pulse = pulse;
-        scene.add(pulse);
+        const packetColor = isWireless ? 0x9dffd6 : 0xa2f4ff;
+        for (let index = 0; index < 3; index++) {
+          const packet = new THREE.Group();
+          packet.add(new THREE.Mesh(
+            new THREE.SphereGeometry(0.075, 12, 12),
+            new THREE.MeshBasicMaterial({ color: packetColor })
+          ));
+          packet.add(new THREE.Mesh(
+            new THREE.SphereGeometry(0.15, 12, 12),
+            new THREE.MeshBasicMaterial({ color: packetColor, transparent: true, opacity: 0.2, depthWrite: false })
+          ));
+          packet.userData.phase = index / 3;
+          line.userData.packets.push(packet);
+          scene.add(packet);
+        }
       }
 
       for (const [a, b] of links) {
@@ -840,19 +894,22 @@
             }
           }
 
+          const animationTime = performance.now() * 0.001;
           scene.children.forEach((child) => {
-            if (child.userData.link === true && child.userData.pulse) {
-              const pulse = child.userData.pulse;
-              const posArray = child.geometry.attributes.position.array;
-              const from = new THREE.Vector3(posArray[0], posArray[1], posArray[2]);
-              const to = new THREE.Vector3(posArray[3], posArray[4], posArray[5]);
-              const t = (performance.now() * 0.0015 + child.id || 0) % 1;
-              const point = from.clone().lerp(to, t);
-              pulse.position.set(point.x, point.y + 0.8, point.z);
-              pulse.visible = true;
-              pulse.scale.setScalar(0.9 + Math.sin(performance.now() * 0.01 + child.id * 10) * 0.2);
+            if (child.userData.link === true && child.userData.packets) {
+              for (const packet of child.userData.packets) {
+                const progress = (animationTime * 0.42 + packet.userData.phase) % 1;
+                packet.position.copy(child.userData.curve.getPoint(progress));
+                packet.scale.setScalar(0.85 + Math.sin(animationTime * 8 + packet.userData.phase * Math.PI * 2) * 0.12);
+              }
             }
           });
+          for (const wave of wirelessWaves) {
+            const progress = (animationTime * 0.38 + wave.userData.phase) % 1;
+            const scale = 0.55 + progress * 1.35;
+            wave.scale.set(scale, scale, scale);
+            wave.material.opacity = (1 - progress) * 0.32;
+          }
 
           if (stereoMode) {
             if (vrCameraTarget) {
