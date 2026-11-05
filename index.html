@@ -1,0 +1,1062 @@
+﻿<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <meta name="theme-color" content="#06131f" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+        }
+      }
+    </script>
+    <title>Rede Cisco VR · Diagrama de Rede</title>
+    <style>
+      :root {
+        --bg-1: #06131f;
+        --bg-2: #0b2037;
+        --panel: rgba(8, 22, 36, 0.78);
+        --line: rgba(84, 151, 201, 0.62);
+        --text: #edf6ff;
+        --muted: #afd0ee;
+        --cyan: #53d6ff;
+        --green: #72f3b3;
+        --purple: #b69dff;
+        --red: #ff7988;
+        --amber: #ffcb7d;
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: radial-gradient(circle at top, var(--bg-2), var(--bg-1) 55%);
+        color: var(--text);
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+
+      body {
+        position: relative;
+      }
+
+      canvas {
+        display: block;
+        width: 100vw;
+        height: 100vh;
+      }
+
+      .hud {
+        position: fixed;
+        top: 18px;
+        left: 18px;
+        max-width: min(460px, calc(100vw - 36px));
+        background: rgba(7, 20, 33, 0.78);
+        border: 1px solid var(--line);
+        border-radius: 16px;
+        padding: 18px 20px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+        backdrop-filter: blur(10px);
+        z-index: 10;
+      }
+
+      .eyebrow {
+        display: inline-block;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.16em;
+        color: var(--cyan);
+        margin-bottom: 8px;
+        text-transform: uppercase;
+      }
+
+      h1 {
+        margin: 0 0 8px;
+        font-size: clamp(22px, 3vw, 32px);
+        line-height: 1.1;
+      }
+
+      .lead {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      .info {
+        position: fixed;
+        left: 18px;
+        top: 18px;
+        width: min(300px, calc(100vw - 32px));
+        background: var(--panel);
+        border: 1px solid rgba(83, 214, 255, 0.56);
+        border-radius: 12px;
+        padding: 12px 14px;
+        box-shadow: 0 18px 45px rgba(0, 0, 0, 0.38);
+        z-index: 11;
+      }
+
+      .info.hidden {
+        display: none;
+      }
+
+      .info::after {
+        content: '';
+        position: absolute;
+        left: var(--tail-x, 24px);
+        top: auto;
+        bottom: -7px;
+        width: 14px;
+        height: 14px;
+        background: var(--panel);
+        border: 0;
+        border-right: 1px solid rgba(83, 214, 255, 0.56);
+        border-bottom: 1px solid rgba(83, 214, 255, 0.56);
+        transform: rotate(45deg);
+      }
+
+      .info.info-below::after {
+        top: -7px;
+        bottom: auto;
+        border: 0;
+        border-left: 1px solid rgba(83, 214, 255, 0.56);
+        border-top: 1px solid rgba(83, 214, 255, 0.56);
+      }
+
+      .info.info-mirror {
+        display: none;
+      }
+
+      .info h2 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .info .role {
+        display: block;
+        margin-top: 6px;
+        color: var(--cyan);
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        font-size: 11px;
+      }
+
+      .info p {
+        margin: 8px 0 0;
+        color: var(--muted);
+        line-height: 1.45;
+        font-size: 13px;
+      }
+
+      .controls {
+        position: fixed;
+        left: 50%;
+        bottom: 18px;
+        transform: translateX(-50%);
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 10px;
+        width: min(98vw, 720px);
+        background: rgba(6, 18, 28, 0.72);
+        border: 1px solid rgba(93, 127, 167, 0.7);
+        border-radius: 14px;
+        padding: 10px 12px;
+        z-index: 12;
+      }
+
+      button {
+        appearance: none;
+        border: 1px solid rgba(93, 138, 191, 0.8);
+        background: #153452;
+        color: var(--text);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 13px;
+        font-weight: 700;
+        cursor: pointer;
+        transition: transform 0.15s ease, background 0.15s ease;
+      }
+
+      button:hover {
+        background: #224b76;
+        transform: translateY(-1px);
+      }
+
+      .legend {
+        position: fixed;
+        left: 18px;
+        bottom: 100px;
+        padding: 10px 12px;
+        border-radius: 12px;
+        background: rgba(7, 19, 29, 0.58);
+        border: 1px solid rgba(116, 153, 196, 0.4);
+        color: #b8d4f1;
+        font-size: 12px;
+        z-index: 10;
+      }
+
+      .dot {
+        display: inline-block;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        margin-right: 8px;
+      }
+
+      .dot.cyan { background: var(--cyan); }
+      .dot.green { background: var(--green); }
+      .dot.purple { background: var(--purple); }
+
+      body.vr-stereo .hud,
+      body.vr-stereo .legend {
+        display: none !important;
+      }
+
+      body.vr-stereo .info {
+        display: block !important;
+        position: fixed;
+        right: auto;
+        bottom: auto;
+        width: min(320px, calc(50vw - 24px));
+        max-height: min(220px, 34vh);
+        overflow: visible;
+        transform: none;
+        padding: 10px 12px;
+        font-size: 12px;
+        z-index: 20;
+      }
+
+      body.vr-stereo .info.info-mirror {
+        display: block !important;
+      }
+
+      body.vr-stereo .info.hidden {
+        display: none !important;
+      }
+
+      body.vr-stereo .info h2 {
+        font-size: clamp(16px, 2vw, 22px);
+      }
+
+      body.vr-stereo .info p {
+        margin-top: 5px;
+        font-size: 12px;
+        line-height: 1.4;
+      }
+
+      body.vr-stereo {
+        background: #000;
+      }
+
+      body.vr-stereo canvas {
+        cursor: default;
+      }
+
+      body.vr-stereo .controls {
+        bottom: 1.2vh;
+        left: 50%;
+        width: auto;
+        padding: 4px;
+        opacity: 0.22;
+        transform: translateX(-50%) scale(0.72);
+        transform-origin: bottom center;
+      }
+
+      body.vr-stereo .controls button:not(#stereoToggle) {
+        display: none;
+      }
+
+      @media (max-width: 760px) {
+        .hud {
+          top: 12px;
+          left: 12px;
+          width: calc(100vw - 24px);
+          max-width: none;
+          padding: 14px 16px;
+        }
+
+        .info {
+          width: min(280px, calc(100vw - 24px));
+        }
+
+        .controls {
+          gap: 8px;
+          bottom: 10px;
+          width: calc(100vw - 18px);
+        }
+
+        button {
+          flex: 1 1 calc(33.33% - 8px);
+          min-width: 90px;
+        }
+
+        .legend {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="hud">
+      <div class="eyebrow">Cisco • VR Experience</div>
+      <h1>Rede Cisco 3D interativa</h1>
+      <p class="lead">Caminhe pelo diagrama para entender o papel da internet, firewall, switches, servidor e Wi‑Fi.</p>
+    </div>
+
+    <aside id="infoPanel" class="info hidden">
+      <h2 id="deviceName">Dispositivo</h2>
+      <span id="deviceRole" class="role">Função</span>
+      <p id="deviceDescription">Detalhes da rede.</p>
+    </aside>
+
+    <div class="legend">
+      <span class="dot cyan"></span>Tráfego Ethernet<br />
+      <span class="dot green"></span>Conexão Wi‑Fi
+    </div>
+
+    <div class="controls">
+      <button id="prevStop">Anterior</button>
+      <button id="nextStop">Próximo ponto</button>
+      <button id="tourToggle">Pausar rota</button>
+      <button id="resetView">Visão geral</button>
+      <button id="stereoToggle" type="button">Modo VR óculos</button>
+    </div>
+
+    <script type="module">
+      import * as THREE from 'https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js';
+      import { OrbitControls } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+      import { VRButton } from 'https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/webxr/VRButton.js';
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x060d17);
+      scene.fog = new THREE.Fog(0x060d17, 14, 44);
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
+      renderer.shadowMap.enabled = true;
+      renderer.xr.enabled = true;
+      document.body.appendChild(renderer.domElement);
+
+      const camera = new THREE.PerspectiveCamera(78, window.innerWidth / window.innerHeight, 0.1, 260);
+      camera.position.set(0, 4.2, 30);
+
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.enablePan = false;
+      controls.minDistance = 8;
+      controls.maxDistance = 48;
+      controls.target.set(0, 1.5, 0);
+      controls.update();
+
+      let orientationListenerActive = false;
+      const leftCamera = camera.clone();
+      const rightCamera = camera.clone();
+      let stereoMode = false;
+      let eyeSeparation = 0.064;
+      let orientationReceived = false;
+      let vrCameraTarget = null;
+
+      function handleDeviceOrientation(event) {
+        if (event.alpha == null || event.beta == null || event.gamma == null) return;
+
+        const alpha = THREE.MathUtils.degToRad(event.alpha);
+        const beta = THREE.MathUtils.degToRad(event.beta);
+        const gamma = THREE.MathUtils.degToRad(event.gamma);
+        const screenAngle = THREE.MathUtils.degToRad(window.screen.orientation?.angle || 0);
+
+        orientationReceived = true;
+        camera.quaternion.setFromEuler(new THREE.Euler(beta, alpha, -gamma, 'YXZ'));
+        camera.rotateZ(-screenAngle);
+      }
+
+      function connectDeviceOrientation() {
+        if (!orientationListenerActive) {
+          window.addEventListener('deviceorientation', handleDeviceOrientation, true);
+          orientationListenerActive = true;
+        }
+      }
+
+      function disconnectDeviceOrientation() {
+        if (orientationListenerActive) {
+          window.removeEventListener('deviceorientation', handleDeviceOrientation, true);
+          orientationListenerActive = false;
+        }
+      }
+
+      const ambientLight = new THREE.HemisphereLight(0xbeecff, 0x0d1723, 1.3);
+      scene.add(ambientLight);
+
+      const keyLight = new THREE.DirectionalLight(0xffffff, 1.4);
+      keyLight.position.set(7, 12, 8);
+      keyLight.castShadow = true;
+      keyLight.shadow.mapSize.set(1024, 1024);
+      scene.add(keyLight);
+
+      const floor = new THREE.Mesh(
+        new THREE.CircleGeometry(26, 100),
+        new THREE.MeshStandardMaterial({ color: 0x112843, roughness: 0.85, metalness: 0.2 })
+      );
+      floor.rotation.x = -Math.PI / 2;
+      floor.position.y = -0.14;
+      floor.receiveShadow = true;
+      scene.add(floor);
+
+      const grid = new THREE.GridHelper(48, 48, 0x1b5a8a, 0x1b5a8a);
+      grid.position.y = -0.12;
+      grid.material.opacity = 0.35;
+      grid.material.transparent = true;
+      scene.add(grid);
+
+      const deviceData = [
+        { id: 'router', name: 'ROTEADOR 1941', type: 'router', color: 0x38a7ff, position: new THREE.Vector3(0, 0.8, 6), role: 'Cisco 1941 · ISR G2', description: 'Conecta a rede local a outras redes. Possui duas portas Gigabit e é configurado pela CLI via cabo console.' },
+        { id: 'firewall', name: 'FIREWALL 5506-X', type: 'firewall', color: 0xff5c73, position: new THREE.Vector3(0, 0.8, 2.3), role: 'Segurança', description: 'Monitora e filtra os pacotes para impedir acesso não autorizado e manter a rede protegida.' },
+        { id: 'switchA', name: 'SWITCH A', type: 'switch', color: 0x38a7ff, position: new THREE.Vector3(-4.5, 0.7, -0.5), role: 'Distribuição de rede', description: 'Conecta o servidor e os computadores da área interna principal.' },
+        { id: 'switchB', name: 'SWITCH B', type: 'switch', color: 0x38a7ff, position: new THREE.Vector3(4.5, 0.7, -0.5), role: 'Distribuição de rede', description: 'Conecta usuários e equipamentos da área complementar e o ponto de acesso Wi‑Fi.' },
+        { id: 'server', name: 'SERVIDOR', type: 'server', color: 0xb08cff, position: new THREE.Vector3(-7.6, 1.2, -3.9), role: '192.168.10.2', description: 'Armazena arquivos, serviços e dados essenciais para a operação da rede corporativa.' },
+        { id: 'pc01', name: 'PC 01', type: 'pc', color: 0x66e1ff, position: new THREE.Vector3(-5.2, 0.7, -6.2), role: '192.168.10.11', description: 'Computador do funcionário conectado ao Switch A, com acesso ao servidor e aplicações internas.' },
+        { id: 'pc02', name: 'PC 02', type: 'pc', color: 0x66e1ff, position: new THREE.Vector3(-2.8, 0.7, -6.2), role: '192.168.10.12', description: 'Estação adicional da rede interna que participa da comunicação com os serviços da empresa.' },
+        { id: 'pc03', name: 'PC 03', type: 'pc', color: 0x7ef5be, position: new THREE.Vector3(2.7, 0.7, -6.2), role: '192.168.10.51', description: 'Computador conectado ao Switch B e responsável por tarefas de escritório e acesso ao ambiente digital.' },
+        { id: 'pc04', name: 'PC 04', type: 'pc', color: 0x7ef5be, position: new THREE.Vector3(5.2, 0.7, -6.2), role: '192.168.10.52', description: 'Estação do setor de atendimento e operações da rede local.' },
+        { id: 'ap', name: 'ACCESS POINT', type: 'ap', color: 0xc599ff, position: new THREE.Vector3(8.2, 0.8, 2.8), role: 'Wi‑Fi', description: 'Disponibiliza rede sem fio para dispositivos móveis e visitantes dentro do ambiente corporativo.' },
+        { id: 'laptop', name: 'LAPTOP', type: 'phone', color: 0x66e1ff, position: new THREE.Vector3(7.2, 0.7, 6.1), role: 'Visitante Wi‑Fi', description: 'Notebook conectado ao Access Point, acessando a rede sem fio para operação e navegação.' },
+        { id: 'smartphone', name: 'SMARTPHONE', type: 'phone', color: 0x7ef5be, position: new THREE.Vector3(9.8, 0.7, 6.1), role: 'Visitante Wi‑Fi', description: 'Dispositivo móvel do visitante que se conecta ao Wi‑Fi para acessar serviços e internet.' }
+      ];
+
+      const routeStops = [
+        { name: 'router', label: 'Internet e gateway', position: new THREE.Vector3(0, 4.5, 24) },
+        { name: 'firewall', label: 'Segurança', position: new THREE.Vector3(0, 4.2, 18) },
+        { name: 'switchA', label: 'Switch A', position: new THREE.Vector3(-12, 4.2, 10) },
+        { name: 'server', label: 'Servidor', position: new THREE.Vector3(-18, 5.0, -8) },
+        { name: 'switchB', label: 'Switch B', position: new THREE.Vector3(12, 4.2, 10) },
+        { name: 'ap', label: 'Wi‑Fi', position: new THREE.Vector3(17, 4.2, 14) }
+      ];
+
+      const links = [
+        ['router', 'firewall'],
+        ['firewall', 'switchA'],
+        ['firewall', 'switchB'],
+        ['switchA', 'server'],
+        ['switchA', 'pc01'],
+        ['switchA', 'pc02'],
+        ['switchB', 'pc03'],
+        ['switchB', 'pc04'],
+        ['switchB', 'ap'],
+        ['ap', 'laptop'],
+        ['ap', 'smartphone']
+      ];
+
+      const nodeMap = new Map();
+      const interactiveObjects = [];
+      const wirelessWaves = [];
+      let currentStop = 0;
+      let autoTravel = true;
+      let selectedDevice = null;
+      let routeTimer = 0;
+      let pointerDown = false;
+      let vrDragStartX = 0;
+      let vrDragStartY = 0;
+      let vrDragX = 0;
+      let vrDragY = 0;
+
+      function createTextSprite(text, color = '#eaf7ff', fontSize = 54) {
+        const canvasTexture = document.createElement('canvas');
+        const context = canvasTexture.getContext('2d');
+        canvasTexture.width = 512;
+        canvasTexture.height = 128;
+        context.clearRect(0, 0, canvasTexture.width, canvasTexture.height);
+        context.font = '700 ' + fontSize + 'px Arial';
+        context.textAlign = 'center';
+        context.textBaseline = 'middle';
+        context.strokeStyle = 'rgba(0,0,0,0.7)';
+        context.lineWidth = 10;
+        context.strokeText(text, 256, 64);
+        context.fillStyle = color;
+        context.fillText(text, 256, 64);
+
+        const texture = new THREE.CanvasTexture(canvasTexture);
+        const material = new THREE.SpriteMaterial({ map: texture, transparent: true, depthWrite: false });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(5.2, 1.3, 1);
+        return sprite;
+      }
+
+      const infoPanel = document.getElementById('infoPanel');
+      const stereoInfoPanel = infoPanel.cloneNode(true);
+      stereoInfoPanel.removeAttribute('id');
+      stereoInfoPanel.classList.add('info-mirror');
+      stereoInfoPanel.setAttribute('aria-hidden', 'true');
+      stereoInfoPanel.querySelectorAll('[id]').forEach((element) => element.removeAttribute('id'));
+      document.body.appendChild(stereoInfoPanel);
+      const infoPanels = [infoPanel, stereoInfoPanel];
+
+      function updateInfoPanel(device) {
+        selectedDevice = device;
+        for (const panel of infoPanels) {
+          panel.querySelector('h2').textContent = device.name;
+          panel.querySelector('.role').textContent = device.role;
+          panel.querySelector('p').textContent = device.description;
+          panel.classList.remove('hidden');
+        }
+      }
+
+      function hideInfoPanel() {
+        for (const panel of infoPanels) {
+          panel.classList.add('hidden');
+        }
+      }
+
+      function positionInfoPanel(panel, projectionCamera, viewportLeft, viewportWidth) {
+        const node = nodeMap.get(selectedDevice.id);
+        if (!node) return;
+
+        const anchor = node.position.clone();
+        anchor.y += 3.4;
+        const projected = anchor.project(projectionCamera);
+        const anchorX = viewportLeft + (projected.x + 1) * 0.5 * viewportWidth;
+        const anchorY = (1 - projected.y) * 0.5 * window.innerHeight;
+        const padding = 12;
+        const gap = 16;
+        const panelWidth = panel.offsetWidth;
+        const panelHeight = panel.offsetHeight;
+        const desiredLeft = anchorX - panelWidth / 2;
+        const left = THREE.MathUtils.clamp(
+          desiredLeft,
+          viewportLeft + padding,
+          viewportLeft + viewportWidth - panelWidth - padding
+        );
+        const placeBelow = anchorY - panelHeight - gap < padding;
+        const top = placeBelow
+          ? THREE.MathUtils.clamp(anchorY + gap, padding, window.innerHeight - panelHeight - padding)
+          : anchorY - panelHeight - gap;
+
+        panel.classList.toggle('info-below', placeBelow);
+        panel.style.left = `${left}px`;
+        panel.style.top = `${top}px`;
+        panel.style.setProperty('--tail-x', `${THREE.MathUtils.clamp(anchorX - left, 14, panelWidth - 14)}px`);
+      }
+
+      function positionInfoPanels() {
+        if (!selectedDevice || infoPanel.classList.contains('hidden')) return;
+
+        if (stereoMode) {
+          const halfWidth = window.innerWidth / 2;
+          leftCamera.updateMatrixWorld(true);
+          rightCamera.updateMatrixWorld(true);
+          positionInfoPanel(infoPanel, leftCamera, 0, halfWidth);
+          positionInfoPanel(stereoInfoPanel, rightCamera, halfWidth, halfWidth);
+        } else {
+          camera.updateMatrixWorld(true);
+          positionInfoPanel(infoPanel, camera, 0, window.innerWidth);
+        }
+      }
+
+      function addNode(device) {
+        const group = new THREE.Group();
+        group.position.copy(device.position);
+        group.position.x *= 1.75;
+        group.position.z *= 1.75;
+        group.userData.device = device;
+
+        const coreMaterial = new THREE.MeshStandardMaterial({
+          color: device.color,
+          emissive: device.color,
+          emissiveIntensity: 0.25,
+          metalness: 0.4,
+          roughness: 0.45
+        });
+        const shellMaterial = new THREE.MeshStandardMaterial({ color: 0x596165, metalness: 0.52, roughness: 0.4 });
+        const darkMaterial = new THREE.MeshStandardMaterial({ color: 0x171d20, metalness: 0.22, roughness: 0.48 });
+        const trimMaterial = new THREE.MeshStandardMaterial({ color: 0x9ba2a3, metalness: 0.62, roughness: 0.32 });
+        const screenMaterial = new THREE.MeshStandardMaterial({ color: 0x081115, metalness: 0.18, roughness: 0.2 });
+        const ledMaterial = new THREE.MeshStandardMaterial({ color: device.color, emissive: device.color, emissiveIntensity: 0.45, roughness: 0.3 });
+        const portMaterial = new THREE.MeshStandardMaterial({ color: 0x080c0e, metalness: 0.18, roughness: 0.62 });
+        const addBox = (width, height, depth, material, x, y, z) => {
+          const mesh = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), material);
+          mesh.position.set(x, y, z);
+          mesh.castShadow = true;
+          group.add(mesh);
+          return mesh;
+        };
+
+        if (device.type === 'router') {
+          addBox(2.6, 0.62, 1.55, shellMaterial, 0, 0.18, 0);
+          addBox(2.38, 0.38, 0.035, darkMaterial, 0, 0.18, 0.79);
+          addBox(0.66, 0.2, 0.045, portMaterial, -0.75, 0.2, 0.83);
+          addBox(0.66, 0.2, 0.045, portMaterial, 0, 0.2, 0.83);
+          for (let index = 0; index < 3; index++) {
+            addBox(0.06, 0.035, 0.025, ledMaterial, -1.08 + index * 0.13, 0.05, 0.83);
+          }
+          for (let index = 0; index < 6; index++) {
+            addBox(0.035, 0.22, 0.02, trimMaterial, 0.52 + index * 0.09, 0.2, 0.83);
+          }
+        }
+
+        if (device.type === 'firewall') {
+          addBox(2.8, 0.72, 1.35, shellMaterial, 0, 0.18, 0);
+          addBox(2.55, 0.44, 0.035, darkMaterial, 0, 0.18, 0.69);
+          for (let index = 0; index < 8; index++) {
+            addBox(0.045, 0.24, 0.025, trimMaterial, -0.95 + index * 0.13, 0.18, 0.73);
+          }
+          addBox(0.4, 0.18, 0.05, portMaterial, 0.9, 0.18, 0.73);
+          addBox(0.06, 0.035, 0.025, ledMaterial, -1.12, 0.02, 0.73);
+        }
+
+        if (device.type === 'switch') {
+          addBox(2.75, 0.5, 1.5, shellMaterial, 0, 0, 0);
+          addBox(2.6, 0.3, 0.035, darkMaterial, 0, 0, 0.77);
+          for (let index = 0; index < 8; index++) {
+            const x = -1.05 + index * 0.3;
+            addBox(0.2, 0.17, 0.04, portMaterial, x, -0.02, 0.81);
+            addBox(0.035, 0.035, 0.025, ledMaterial, x, 0.13, 0.81);
+          }
+        }
+
+        if (device.type === 'server') {
+          addBox(1.55, 0.12, 1.15, darkMaterial, 0, 0.06, 0);
+          addBox(0.12, 2.35, 1.05, darkMaterial, -0.72, 1.25, 0);
+          addBox(0.12, 2.35, 1.05, darkMaterial, 0.72, 1.25, 0);
+          addBox(1.55, 0.12, 1.05, darkMaterial, 0, 2.43, 0);
+          addBox(1.35, 2.2, 0.06, darkMaterial, 0, 1.25, -0.53);
+          addBox(0.07, 2.18, 0.06, trimMaterial, -0.57, 1.25, 0.57);
+          addBox(0.07, 2.18, 0.06, trimMaterial, 0.57, 1.25, 0.57);
+          for (let row = 0; row < 3; row++) {
+            const y = 0.55 + row * 0.67;
+            addBox(1.05, 0.48, 0.68, shellMaterial, 0, y, 0.03);
+            addBox(0.96, 0.34, 0.035, darkMaterial, 0, y, 0.4);
+            for (let index = 0; index < 6; index++) {
+              addBox(0.025, 0.2, 0.02, trimMaterial, -0.37 + index * 0.075, y, 0.43);
+            }
+            addBox(0.045, 0.045, 0.025, ledMaterial, 0.39, y - 0.1, 0.43);
+          }
+        }
+
+        if (device.type === 'pc') {
+          addBox(1.32, 0.88, 0.14, darkMaterial, 0, 1.42, 0);
+          addBox(1.18, 0.72, 0.025, screenMaterial, 0, 1.43, 0.083);
+          addBox(0.12, 0.48, 0.16, trimMaterial, 0, 0.88, 0);
+          addBox(0.78, 0.09, 0.5, darkMaterial, 0, 0.62, 0.02);
+          addBox(1.1, 0.1, 0.36, shellMaterial, 0, 0.16, 0.68);
+          addBox(0.42, 0.05, 0.16, screenMaterial, 0, 0.22, 0.68);
+          for (let row = 0; row < 3; row++) {
+            addBox(0.88, 0.015, 0.018, trimMaterial, 0, 0.22, 0.56 + row * 0.075);
+          }
+          addBox(0.48, 1.12, 0.82, shellMaterial, 0.95, 0.62, -0.08);
+          addBox(0.34, 0.75, 0.035, darkMaterial, 0.95, 0.64, 0.34);
+          addBox(0.045, 0.045, 0.025, ledMaterial, 0.95, 0.96, 0.37);
+        }
+
+        if (device.type === 'ap') {
+          const ceilingPlate = new THREE.Mesh(new THREE.BoxGeometry(1.75, 0.08, 1.75), new THREE.MeshStandardMaterial({ color: 0xd8d9d4, roughness: 0.82 }));
+          ceilingPlate.position.y = 1.18;
+          group.add(ceilingPlate);
+          const body = new THREE.Mesh(new THREE.CylinderGeometry(0.82, 0.86, 0.2, 32), new THREE.MeshStandardMaterial({ color: 0xe5e6e2, roughness: 0.7 }));
+          body.position.y = 1.0;
+          body.castShadow = true;
+          group.add(body);
+          const face = new THREE.Mesh(new THREE.CylinderGeometry(0.74, 0.74, 0.035, 32), new THREE.MeshStandardMaterial({ color: 0xc5c9c7, roughness: 0.68 }));
+          face.position.y = 0.88;
+          group.add(face);
+          const indicator = new THREE.Mesh(new THREE.SphereGeometry(0.035, 12, 12), ledMaterial);
+          indicator.position.set(0, 0.86, 0.58);
+          group.add(indicator);
+          for (let index = 0; index < 3; index++) {
+            const wave = new THREE.Mesh(
+              new THREE.TorusGeometry(0.48, 0.018, 6, 48),
+              new THREE.MeshBasicMaterial({ color: 0x78edc3, transparent: true, opacity: 0.32, depthWrite: false })
+            );
+            wave.rotation.x = Math.PI / 2;
+            wave.position.y = 1.4;
+            wave.userData.phase = index / 3;
+            group.add(wave);
+            wirelessWaves.push(wave);
+          }
+        }
+
+        if (device.type === 'phone' && device.id === 'laptop') {
+          addBox(1.2, 0.09, 0.82, shellMaterial, 0, 0.12, 0.05);
+          addBox(1.12, 0.72, 0.07, darkMaterial, 0, 0.53, -0.34);
+          addBox(1.0, 0.6, 0.025, screenMaterial, 0, 0.54, -0.295);
+          addBox(0.72, 0.015, 0.28, trimMaterial, 0, 0.18, 0.13);
+        }
+
+        if (device.type === 'phone' && device.id !== 'laptop') {
+          addBox(0.7, 1.2, 0.16, darkMaterial, 0, 0.25, 0);
+          addBox(0.59, 0.98, 0.025, screenMaterial, 0, 0.27, 0.093);
+          const cameraLens = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 10), trimMaterial);
+          cameraLens.position.set(0, 0.77, 0.105);
+          group.add(cameraLens);
+        }
+
+        const label = createTextSprite(device.name.substring(0, 15), '#f2fbff', 48);
+        label.position.set(0, 3.0, 0);
+        group.add(label);
+
+        scene.add(group);
+        nodeMap.set(device.id, group);
+        group.traverse((child) => {
+          if (child.isMesh) {
+            child.userData.device = device;
+            interactiveObjects.push(child);
+          }
+        });
+      }
+
+      for (const device of deviceData) {
+        addNode(device);
+      }
+
+      function addLink(aId, bId) {
+        const a = nodeMap.get(aId);
+        const b = nodeMap.get(bId);
+        if (!a || !b) return;
+
+        const isWireless = a.userData.device.type === 'ap' || b.userData.device.type === 'ap';
+        const start = a.position.clone();
+        const end = b.position.clone();
+        start.y += isWireless ? 1.4 : 0.65;
+        end.y += isWireless ? 0.9 : 0.65;
+        const curve = isWireless
+          ? new THREE.QuadraticBezierCurve3(
+            start,
+            new THREE.Vector3((start.x + end.x) / 2, Math.max(start.y, end.y) + 2.2, (start.z + end.z) / 2),
+            end
+          )
+          : new THREE.LineCurve3(start, end);
+        const material = isWireless
+          ? new THREE.LineDashedMaterial({ color: 0x78edc3, dashSize: 0.3, gapSize: 0.2, transparent: true, opacity: 0.55 })
+          : new THREE.LineBasicMaterial({ color: 0x4ccaf7, transparent: true, opacity: 0.7 });
+        const geometry = new THREE.BufferGeometry().setFromPoints(curve.getPoints(isWireless ? 40 : 1));
+        const line = new THREE.Line(geometry, material);
+        if (isWireless) line.computeLineDistances();
+        line.userData.link = true;
+        line.userData.curve = curve;
+        line.userData.packets = [];
+        scene.add(line);
+
+        const tcpStates = [
+          { name: 'SYN', color: 0xffcb7d },
+          { name: 'SYN-ACK', color: 0xb69dff },
+          { name: 'ACK', color: 0x72f3b3 },
+          { name: 'DATA', color: 0x53d6ff }
+        ];
+
+        tcpStates.forEach((tcpState, index) => {
+          const packet = new THREE.Group();
+          const packetMesh = new THREE.Mesh(
+            new THREE.BoxGeometry(0.22, 0.16, 0.22),
+            new THREE.MeshStandardMaterial({
+              color: tcpState.color,
+              emissive: tcpState.color,
+              emissiveIntensity: 0.8,
+              metalness: 0.25,
+              roughness: 0.25
+            })
+          );
+          packetMesh.castShadow = true;
+          packet.add(packetMesh);
+
+          packet.add(new THREE.Mesh(
+            new THREE.BoxGeometry(0.3, 0.24, 0.3),
+            new THREE.MeshBasicMaterial({ color: tcpState.color, transparent: true, opacity: 0.18, depthWrite: false })
+          ));
+
+          const label = createTextSprite(tcpState.name, `#${tcpState.color.toString(16).padStart(6, '0')}`, 64);
+          label.scale.set(1.4, 0.35, 1);
+          label.position.y = 0.38;
+          packet.add(label);
+
+          packet.userData.phase = index / tcpStates.length;
+          packet.userData.state = tcpState.name;
+          packet.userData.reverse = tcpState.name === 'SYN-ACK';
+          line.userData.packets.push(packet);
+          scene.add(packet);
+        });
+      }
+
+      for (const [a, b] of links) {
+        addLink(a, b);
+      }
+
+      function showRouteStop(index) {
+        currentStop = (index + routeStops.length) % routeStops.length;
+        const stop = routeStops[currentStop];
+        const target = nodeMap.get(stop.name);
+        if (!target) return;
+
+        const focusPosition = new THREE.Vector3(11, 5.5, 11);
+        const lookAt = target.position.clone();
+
+        if (stereoMode) {
+          vrCameraTarget = stop.position.clone();
+          controls.target.copy(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)));
+          if (!orientationReceived) {
+            camera.lookAt(controls.target);
+          }
+        } else {
+          camera.position.lerp(lookAt.clone().add(focusPosition), 0.18);
+          controls.target.lerp(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)), 0.18);
+          controls.update();
+        }
+
+        const device = target.userData.device;
+        selectedDevice = device;
+        updateInfoPanel(device);
+      }
+
+      function resetOverview() {
+        camera.position.set(0, 4.2, 30);
+        controls.target.set(0, 1.4, 0);
+        controls.update();
+        selectedDevice = null;
+        hideInfoPanel();
+      }
+
+      document.getElementById('nextStop').addEventListener('click', () => {
+        showRouteStop(currentStop + 1);
+      });
+
+      document.getElementById('prevStop').addEventListener('click', () => {
+        showRouteStop(currentStop - 1);
+      });
+
+      document.getElementById('tourToggle').addEventListener('click', () => {
+        autoTravel = !autoTravel;
+        document.getElementById('tourToggle').textContent = autoTravel ? 'Pausar rota' : 'Retomar rota';
+      });
+
+      document.getElementById('resetView').addEventListener('click', () => {
+        resetOverview();
+      });
+
+      async function enableStereoMode() {
+        stereoMode = true;
+        document.body.classList.add('vr-stereo');
+        document.getElementById('stereoToggle').textContent = 'Sair do modo VR';
+        controls.enabled = false;
+        autoTravel = true;
+        routeTimer = 0;
+        orientationReceived = false;
+        showRouteStop(0);
+        connectDeviceOrientation();
+
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          try {
+            const permission = await DeviceOrientationEvent.requestPermission();
+            if (permission !== 'granted') return;
+          } catch (error) {
+            console.warn('Permissão de orientação não concedida:', error);
+          }
+        }
+
+        try {
+          if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+          if (screen.orientation && screen.orientation.lock) await screen.orientation.lock('landscape');
+        } catch (error) {
+          console.info('Tela cheia ou bloqueio de orientação não disponível neste navegador.', error);
+        }
+
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      function disableStereoMode() {
+        stereoMode = false;
+        document.body.classList.remove('vr-stereo');
+        document.getElementById('stereoToggle').textContent = 'Modo VR óculos';
+        controls.enabled = true;
+        disconnectDeviceOrientation();
+        renderer.setScissorTest(false);
+        renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+        resetOverview();
+        window.dispatchEvent(new Event('resize'));
+      }
+
+      document.getElementById('stereoToggle').addEventListener('click', () => {
+        if (stereoMode) disableStereoMode(); else enableStereoMode();
+      });
+
+      window.addEventListener('keydown', (event) => {
+        if (!stereoMode) return;
+        if (event.key === 'ArrowRight' || event.key.toLowerCase() === 'd') {
+          showRouteStop(currentStop + 1);
+          routeTimer = 0;
+        } else if (event.key === 'ArrowLeft' || event.key.toLowerCase() === 'a') {
+          showRouteStop(currentStop - 1);
+          routeTimer = 0;
+        }
+      });
+
+      const vrRequested = !new URLSearchParams(window.location.search).has('desktop');
+      if (vrRequested) {
+        enableStereoMode();
+      }
+
+      window.addEventListener('pointerdown', () => {
+        if (!stereoMode && vrRequested) enableStereoMode();
+      }, { once: true });
+
+      const raycaster = new THREE.Raycaster();
+      const pointer = new THREE.Vector2();
+
+      function handlePointerMove(event) {
+        const rect = renderer.domElement.getBoundingClientRect();
+        pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+      }
+
+      renderer.domElement.addEventListener('pointerdown', (event) => {
+        pointerDown = true;
+        vrDragStartX = event.clientX;
+        vrDragStartY = event.clientY;
+        vrDragX = event.clientX;
+        vrDragY = event.clientY;
+        handlePointerMove(event);
+      });
+
+      renderer.domElement.addEventListener('pointermove', (event) => {
+        if (!pointerDown || !stereoMode || orientationReceived) return;
+        const deltaX = event.clientX - vrDragX;
+        const deltaY = event.clientY - vrDragY;
+        if (!orientationReceived && (Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0)) {
+          orientationReceived = true;
+        }
+        vrDragX = event.clientX;
+        vrDragY = event.clientY;
+        camera.rotation.y -= deltaX * 0.004;
+        camera.rotation.x -= deltaY * 0.004;
+        camera.rotation.x = THREE.MathUtils.clamp(camera.rotation.x, -1.1, 1.1);
+      });
+
+      renderer.domElement.addEventListener('pointerup', (event) => {
+        if (!pointerDown) return;
+        pointerDown = false;
+        handlePointerMove(event);
+
+        if (stereoMode) {
+          const swipeX = event.clientX - vrDragStartX;
+          if (Math.abs(swipeX) > 35) {
+            showRouteStop(currentStop + (swipeX < 0 ? 1 : -1));
+            routeTimer = 0;
+            return;
+          }
+        }
+
+        raycaster.setFromCamera(pointer, camera);
+        const hits = raycaster.intersectObjects(interactiveObjects, false);
+        if (hits.length > 0) {
+          const hit = hits[0].object.userData.device;
+          if (hit) {
+            const targetNode = nodeMap.get(hit.id);
+            if (targetNode) {
+              const lookAt = targetNode.position.clone();
+              camera.position.lerp(lookAt.clone().add(new THREE.Vector3(3.2, 2.1, 3.2)), 0.2);
+              controls.target.lerp(lookAt.clone().add(new THREE.Vector3(0, 0.8, 0)), 0.2);
+              updateInfoPanel(hit);
+            }
+          }
+        }
+      });
+
+      window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      });
+
+      if (navigator.xr) {
+        navigator.xr.isSessionSupported('immersive-vr').then((supported) => {
+          if (supported) document.body.appendChild(VRButton.createButton(renderer));
+        });
+      }
+
+      function animate() {
+        renderer.setAnimationLoop(() => {
+          if (autoTravel && !renderer.xr.isPresenting) {
+            routeTimer += 0.008;
+            const dwellTime = stereoMode && currentStop === 0 ? 4.8 : 1.4;
+            if (routeTimer > dwellTime) {
+              routeTimer = 0;
+              showRouteStop(currentStop + 1);
+            }
+          }
+
+          const animationTime = performance.now() * 0.001;
+          scene.children.forEach((child) => {
+            if (child.userData.link === true && child.userData.packets) {
+              for (const packet of child.userData.packets) {
+                let progress = (animationTime * 0.28 + packet.userData.phase) % 1;
+                if (packet.userData.reverse) progress = 1 - progress;
+                packet.position.copy(child.userData.curve.getPoint(progress));
+                packet.rotation.y += 0.018;
+                packet.scale.setScalar(0.95 + Math.sin(animationTime * 8 + packet.userData.phase * Math.PI * 2) * 0.14);
+                packet.children.forEach((part) => {
+                  if (part.isSprite) part.quaternion.copy(camera.quaternion);
+                });
+              }
+            }
+          });
+          for (const wave of wirelessWaves) {
+            const progress = (animationTime * 0.38 + wave.userData.phase) % 1;
+            const scale = 0.55 + progress * 1.35;
+            wave.scale.set(scale, scale, scale);
+            wave.material.opacity = (1 - progress) * 0.32;
+          }
+
+          if (stereoMode) {
+            if (vrCameraTarget) {
+              camera.position.lerp(vrCameraTarget, 0.025);
+            }
+            if (!orientationReceived && controls.target) {
+              camera.lookAt(controls.target);
+            }
+
+            const width = renderer.domElement.width;
+            const height = renderer.domElement.height;
+            const halfWidth = Math.floor(width / 2);
+
+            leftCamera.position.copy(camera.position);
+            rightCamera.position.copy(camera.position);
+            leftCamera.quaternion.copy(camera.quaternion);
+            rightCamera.quaternion.copy(camera.quaternion);
+            leftCamera.fov = camera.fov;
+            rightCamera.fov = camera.fov;
+            leftCamera.near = camera.near;
+            rightCamera.near = camera.near;
+            leftCamera.far = camera.far;
+            rightCamera.far = camera.far;
+            leftCamera.aspect = halfWidth / height;
+            rightCamera.aspect = halfWidth / height;
+            leftCamera.updateProjectionMatrix();
+            rightCamera.updateProjectionMatrix();
+            leftCamera.translateX(-eyeSeparation / 2);
+            rightCamera.translateX(eyeSeparation / 2);
+
+            positionInfoPanels();
+            renderer.setScissorTest(true);
+            renderer.setViewport(0, 0, halfWidth, height);
+            renderer.setScissor(0, 0, halfWidth, height);
+            renderer.render(scene, leftCamera);
+
+            renderer.setViewport(width - halfWidth, 0, halfWidth, height);
+            renderer.setScissor(width - halfWidth, 0, halfWidth, height);
+            renderer.render(scene, rightCamera);
+          } else {
+            renderer.setScissorTest(false);
+            renderer.setViewport(0, 0, window.innerWidth, window.innerHeight);
+            controls.update();
+            positionInfoPanels();
+            renderer.render(scene, camera);
+          }
+        });
+      }
+
+      animate();
+    </script>
+  </body>
+</html>
